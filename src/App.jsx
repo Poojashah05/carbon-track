@@ -8,7 +8,7 @@
 
 import { useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
-import supabase, { isSupabaseConfigured } from './lib/supabaseClient';
+import supabase from './lib/supabaseClient';
 
 // Layout
 import Layout from './components/Layout';
@@ -64,11 +64,6 @@ function AuthCallback() {
 export default function App() {
   return (
     <BrowserRouter>
-      {!isSupabaseConfigured && (
-        <div className="fixed top-0 left-0 right-0 z-50 bg-amber-50 border-b border-amber-200 px-4 py-2 text-xs text-amber-800 flex items-center gap-2">
-          <strong>⚙️ Setup required:</strong> Copy <code>.env.example</code> to <code>.env</code> and add your Supabase credentials to enable authentication.
-        </div>
-      )}
       <Routes>
         {/* Public routes */}
         <Route path="/login" element={<Login />} />
