@@ -7,7 +7,7 @@
 // No props — reads state via hooks/context
 
 import { useEffect, useState } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, Outlet, useNavigate } from 'react-router-dom';
 import supabase from './lib/supabaseClient';
 
 // Layout
@@ -46,13 +46,43 @@ function RequireAuth() {
  * @returns {JSX.Element}
  */
 function AuthCallback() {
-  const [, setDone] = useState(false);
+  const navigate = useNavigate();
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) setDone(true);
+      if (session?.user) {
+        checkOnboardingAndRedirect(session.user);
+      } else {
+        const { data: listener } = supabase.auth.onAuthStateChange((event, s) => {
+          if (s?.user) {
+            listener.subscription.unsubscribe();
+            checkOnboardingAndRedirect(s.user);
+          }
+        });
+        const timeout = setTimeout(() => {
+          listener.subscription.unsubscribe();
+          navigate('/login', { replace: true });
+        }, 5000);
+        return () => {
+          listener.subscription.unsubscribe();
+          clearTimeout(timeout);
+        };
+      }
     });
-  }, []);
+  }, [navigate]);
+
+  const checkOnboardingAndRedirect = async (user) => {
+    try {
+      const { data } = await supabase
+        .from('profiles')
+        .select('onboarded')
+        .eq('user_id', user.id)
+        .maybeSingle();
+      navigate(data?.onboarded ? '/dashboard' : '/onboarding', { replace: true });
+    } catch (err) {
+      navigate('/dashboard', { replace: true });
+    }
+  };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-canvas">
