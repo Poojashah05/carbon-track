@@ -203,7 +203,7 @@ export default function ActivityForm({ onSubmit, isSubmitting = false }) {
 
         {/* Live preview */}
         {quantity > 0 && (
-          <div className="flex items-center justify-between px-4 py-3 bg-light-green/30 border border-mint/30 rounded text-sm animate-fade-in">
+          <div className="flex items-center justify-between px-4 py-3 bg-light-green/40 border border-mint/40 rounded text-sm animate-fade-in">
             <span className="text-text-secondary font-medium">Estimated emission</span>
             <span className="font-semibold text-forest tabular-nums">{formatCO2(previewKg)}</span>
           </div>

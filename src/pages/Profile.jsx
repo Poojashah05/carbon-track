@@ -290,7 +290,7 @@ export default function Profile() {
           <h2 className="text-sm font-semibold text-charcoal px-1">Carbon Baseline Guide</h2>
           {BASELINE_FACTS.map(({ title, detail }) => (
             <div key={title} className="card p-4">
-              <h3 className="text-xs font-semibold text-forest mb-1">{title}</h3>
+              <h3 className="text-xs font-semibold text-mint mb-1">{title}</h3>
               <p className="text-xs text-text-muted leading-relaxed">{detail}</p>
             </div>
           ))}

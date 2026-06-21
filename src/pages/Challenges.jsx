@@ -107,9 +107,9 @@ export default function Challenges() {
         <div className="space-y-4">
 
           {/* Trophy card */}
-          <div className={`card p-5 text-center ${earnedBadge ? 'border-mint' : ''}`}>
+          <div className={`card p-5 text-center ${earnedBadge ? 'border-amber' : ''}`}>
             <div className={`w-14 h-14 mx-auto rounded-full flex items-center justify-center mb-3
-                            ${earnedBadge ? 'bg-mint text-white' : 'bg-surface-2 text-text-muted'}`}>
+                            ${earnedBadge ? 'bg-amber text-white' : 'bg-surface-2 text-text-muted'}`}>
               <Trophy size={24} />
             </div>
 
@@ -131,7 +131,7 @@ export default function Challenges() {
               <ProgressBar
                 value={totalPoints}
                 max={CHAMPION_THRESHOLD}
-                color={earnedBadge ? 'mint' : 'forest'}
+                color={earnedBadge ? 'warning' : 'forest'}
                 label={`${completedCount} / ${ALL_CHALLENGES.length} completed`}
                 showValue={false}
               />

@@ -16,9 +16,9 @@ const GLOBAL_AVG = 391.67;
  * @returns {{ stroke: string, text: string }}
  */
 function getSeverity(kg) {
-  if (kg < INDIA_AVG) return { stroke: '#52b788', text: 'text-mint' };
-  if (kg < GLOBAL_AVG) return { stroke: '#b5852a', text: 'text-warning' };
-  return { stroke: '#c0392b', text: 'text-danger' };
+  if (kg < INDIA_AVG) return { stroke: '#6366f1', text: 'text-mint' };   // indigo — good
+  if (kg < GLOBAL_AVG) return { stroke: '#d97706', text: 'text-amber' }; // amber — mid
+  return { stroke: '#dc2626', text: 'text-danger' };                     // red — high
 }
 
 /**
@@ -59,7 +59,7 @@ export default function EmissionGauge({ totalKg, maxKg = 600 }) {
           <circle
             cx="100" cy="100" r={radius}
             fill="none"
-            stroke="#e3e0d6"
+            stroke="#e8e4de"
             strokeWidth="12"
             strokeDasharray={`${circumference * 0.75} ${circumference * 0.25}`}
             strokeLinecap="round"
@@ -89,10 +89,10 @@ export default function EmissionGauge({ totalKg, maxKg = 600 }) {
       {/* Severity label */}
       <div className="text-center">
         {totalKg < INDIA_AVG && (
-          <p className="text-xs font-medium text-mint">Below India average 🌿</p>
+          <p className="text-xs font-medium text-mint">Below India average ✦</p>
         )}
         {totalKg >= INDIA_AVG && totalKg < GLOBAL_AVG && (
-          <p className="text-xs font-medium text-warning">Above India, below global avg</p>
+          <p className="text-xs font-medium text-amber">Above India, below global avg</p>
         )}
         {totalKg >= GLOBAL_AVG && (
           <p className="text-xs font-medium text-danger">Above global average</p>

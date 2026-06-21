@@ -8,10 +8,10 @@ import PropTypes from 'prop-types';
 import { formatCO2 } from '../utils/formatters';
 
 const CATEGORY_META = {
-  transport: { label: 'Transport', color: '#2d6a4f' },
-  food:      { label: 'Food',      color: '#52b788' },
-  energy:    { label: 'Energy',    color: '#40916c' },
-  shopping:  { label: 'Shopping',  color: '#74c69d' },
+  transport: { label: 'Transport', color: '#312e81' },  // deep indigo
+  food:      { label: 'Food',      color: '#d97706' },  // amber
+  energy:    { label: 'Energy',    color: '#6366f1' },  // bright indigo-violet
+  shopping:  { label: 'Shopping',  color: '#818cf8' },  // light indigo
 };
 
 /**

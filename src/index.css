@@ -49,7 +49,7 @@
 
   /* Focus-visible ring for accessibility */
   :focus-visible {
-    outline: 2px solid #52b788;
+    outline: 2px solid #6366f1;
     outline-offset: 2px;
     border-radius: 4px;
   }
@@ -58,7 +58,7 @@
 /* ─── Component Utilities ─────────────────────────────────────────── */
 @layer components {
 
-  /* Thin-border card — no heavy shadows */
+  /* Thin-border card */
   .card {
     @apply bg-white border border-border rounded-md;
   }
@@ -75,7 +75,7 @@
            disabled:opacity-50 disabled:cursor-not-allowed;
   }
 
-  /* Secondary / ghost button */
+  /* Ghost / secondary button */
   .btn-ghost {
     @apply inline-flex items-center gap-2 px-4 py-2 border border-border text-text-secondary
            text-sm font-medium rounded transition-all duration-150 hover:border-forest
@@ -88,6 +88,13 @@
            rounded transition-all duration-150 hover:opacity-90 active:scale-95;
   }
 
+  /* Amber accent button */
+  .btn-amber {
+    @apply inline-flex items-center gap-2 px-4 py-2 bg-amber text-white text-sm font-medium
+           rounded transition-all duration-150 hover:opacity-90 active:scale-95
+           disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
   /* Form label */
   .form-label {
     @apply block text-sm font-medium text-text-secondary mb-1;
@@ -97,13 +104,14 @@
   .form-input {
     @apply w-full px-3 py-2 text-sm border border-border rounded bg-white
            text-text-primary placeholder-text-muted
-           focus:outline-none focus:border-forest focus:ring-1 focus:ring-forest
+           focus:outline-none focus:border-mint focus:ring-1 focus:ring-mint
            transition-colors duration-150;
   }
 
+  /* Form select */
   .form-select {
     @apply form-input appearance-none pr-8;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%237a7a7a' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2378716c' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
     background-repeat: no-repeat;
     background-position: right 0.75rem center;
     background-size: 12px;
@@ -124,15 +132,28 @@
     @apply inline-flex items-center px-2 py-0.5 text-xs font-medium rounded;
   }
 
+  /* Indigo (primary) badge — replaces old badge-green */
   .badge-green  { @apply badge bg-light-green text-forest; }
-  .badge-amber  { @apply badge bg-amber-100 text-amber-700; }
+  /* Amber badge — direct CSS to avoid @apply token resolution issue */
+  .badge-amber  {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.125rem 0.5rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+    border-radius: 4px;
+    background-color: #fef3c7;
+    color: #d97706;
+  }
+  /* Red badge */
   .badge-red    { @apply badge bg-red-100 text-red-700; }
+  /* Muted grey badge */
   .badge-muted  { @apply badge bg-surface-2 text-text-secondary; }
 
   /* Skeleton loader */
   .skeleton {
     @apply rounded bg-surface-1;
-    background: linear-gradient(90deg, #edeae0 25%, #e3e0d6 50%, #edeae0 75%);
+    background: linear-gradient(90deg, #f0ede8 25%, #e8e4de 50%, #f0ede8 75%);
     background-size: 200% 100%;
     animation: shimmer 1.8s infinite linear;
   }
@@ -175,9 +196,9 @@
 @layer utilities {
   .scrollbar-thin {
     scrollbar-width: thin;
-    scrollbar-color: #d0cdc4 transparent;
+    scrollbar-color: #d6d3cd transparent;
   }
   .scrollbar-thin::-webkit-scrollbar { width: 4px; }
   .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
-  .scrollbar-thin::-webkit-scrollbar-thumb { background: #d0cdc4; border-radius: 2px; }
+  .scrollbar-thin::-webkit-scrollbar-thumb { background: #d6d3cd; border-radius: 2px; }
 }

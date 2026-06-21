@@ -152,13 +152,13 @@ export default function Dashboard() {
             <Link
               to="/onboarding"
               className="card p-4 flex items-center justify-between group
-                         border-mint/50 hover:border-mint transition-colors duration-150 block"
+                         border-amber/40 hover:border-amber transition-colors duration-150 block"
             >
               <div>
                 <p className="text-sm font-medium text-charcoal">Complete Setup</p>
                 <p className="text-xs text-text-muted">Set your baseline preferences</p>
               </div>
-              <ArrowRight size={16} className="text-text-muted group-hover:text-mint transition-colors" />
+              <ArrowRight size={16} className="text-text-muted group-hover:text-amber transition-colors" />
             </Link>
           )}
 

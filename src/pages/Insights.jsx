@@ -164,8 +164,8 @@ export default function Insights() {
           </div>
 
           {/* Did you know */}
-          <div className="card p-4 bg-light-green/20 border-mint/30">
-            <p className="text-xs font-semibold text-forest uppercase tracking-wide mb-2">
+          <div className="card p-4 bg-amberLight/30 border-amber/30">
+            <p className="text-xs font-semibold text-amber uppercase tracking-wide mb-2">
               Did you know?
             </p>
             <p className="text-sm text-text-secondary leading-relaxed">{didYouKnow}</p>
