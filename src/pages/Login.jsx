@@ -18,26 +18,26 @@ export default function Login() {
 
   // Handle OAuth callback — if user already authed, redirect
   useEffect(() => {
+    const checkOnboardingAndRedirect = async (user) => {
+      try {
+        const { data } = await supabase
+          .from('profiles')
+          .select('onboarded')
+          .eq('user_id', user.id)
+          .maybeSingle();
+        navigate(data?.onboarded ? '/dashboard' : '/onboarding', { replace: true });
+      } catch (err) {
+        logger.error('Profile check failed:', err);
+        navigate('/dashboard', { replace: true });
+      }
+    };
+
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
         checkOnboardingAndRedirect(session.user);
       }
     });
-  }, []);
-
-  const checkOnboardingAndRedirect = async (user) => {
-    try {
-      const { data } = await supabase
-        .from('profiles')
-        .select('onboarded')
-        .eq('user_id', user.id)
-        .maybeSingle();
-      navigate(data?.onboarded ? '/dashboard' : '/onboarding', { replace: true });
-    } catch (err) {
-      logger.error('Profile check failed:', err);
-      navigate('/dashboard', { replace: true });
-    }
-  };
+  }, [navigate]);
 
   const handleGitHubLogin = async () => {
     setIsLoading(true);

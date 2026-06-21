@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 /**
  * @file logger.js
  * @description Development-conditional logger. Wraps console methods behind

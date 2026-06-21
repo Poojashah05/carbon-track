@@ -116,7 +116,7 @@ export default function Challenges() {
             {earnedBadge ? (
               <>
                 <h2 className="text-base font-semibold text-charcoal">Eco Champion!</h2>
-                <p className="text-xs text-text-muted mt-1">You've earned the top badge.</p>
+                <p className="text-xs text-text-muted mt-1">{"You've earned the top badge."}</p>
               </>
             ) : (
               <>

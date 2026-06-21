@@ -39,6 +39,7 @@ export default function Layout() {
     navigate('/login');
   };
 
+  // eslint-disable-next-line react/prop-types
   const Sidebar = ({ mobile = false }) => (
     <nav
       className={`flex flex-col h-full bg-white border-r border-border

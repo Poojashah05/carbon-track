@@ -49,6 +49,19 @@ function AuthCallback() {
   const navigate = useNavigate();
 
   useEffect(() => {
+    const checkOnboardingAndRedirect = async (user) => {
+      try {
+        const { data } = await supabase
+          .from('profiles')
+          .select('onboarded')
+          .eq('user_id', user.id)
+          .maybeSingle();
+        navigate(data?.onboarded ? '/dashboard' : '/onboarding', { replace: true });
+      } catch {
+        navigate('/dashboard', { replace: true });
+      }
+    };
+
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
         checkOnboardingAndRedirect(session.user);
@@ -70,19 +83,6 @@ function AuthCallback() {
       }
     });
   }, [navigate]);
-
-  const checkOnboardingAndRedirect = async (user) => {
-    try {
-      const { data } = await supabase
-        .from('profiles')
-        .select('onboarded')
-        .eq('user_id', user.id)
-        .maybeSingle();
-      navigate(data?.onboarded ? '/dashboard' : '/onboarding', { replace: true });
-    } catch (err) {
-      navigate('/dashboard', { replace: true });
-    }
-  };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-canvas">

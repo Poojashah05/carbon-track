@@ -98,7 +98,7 @@ export default function LogActivity() {
 
           {/* Today's footprint */}
           <div className="card p-4">
-            <h2 className="text-sm font-semibold text-charcoal mb-3">Today's Footprint</h2>
+            <h2 className="text-sm font-semibold text-charcoal mb-3">{"Today's Footprint"}</h2>
             <div className="text-2xl font-semibold text-charcoal tabular-nums mb-1">
               {formatCO2(todayKg)}
             </div>

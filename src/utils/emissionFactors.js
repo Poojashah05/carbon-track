@@ -113,7 +113,7 @@ export function getCategoryBreakdown(logs) {
   }
 
   logs.forEach((log) => {
-    if (!log || !log.category || !totals.hasOwnProperty(log.category)) return;
+    if (!log || !log.category || !Object.prototype.hasOwnProperty.call(totals, log.category)) return;
     totals[log.category] += calculateEmission(log.category, log.subcategory, log.quantity);
   });
 

@@ -32,6 +32,8 @@ export default [
     rules: {
       // React
       'react/react-in-jsx-scope': 'off',
+      'react/jsx-uses-react': 'error',
+      'react/jsx-uses-vars': 'error',
       'react/prop-types': 'warn',
       'react/display-name': 'warn',
       'react/no-unescaped-entities': 'error',
@@ -41,7 +43,7 @@ export default [
       // General quality
       'no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
       'no-undef': 'error',
-      'no-console': ['error', { allow: [] }],
+      'no-console': 'error',
       'eqeqeq': ['error', 'always'],
       'no-var': 'error',
       'prefer-const': 'error',

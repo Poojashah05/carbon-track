@@ -6,7 +6,7 @@
 import { useState, useCallback } from 'react';
 import PropTypes from 'prop-types';
 import { Car, Utensils, Zap, ShoppingBag } from 'lucide-react';
-import { FACTORS, calculateEmission } from '../utils/emissionFactors';
+import { calculateEmission } from '../utils/emissionFactors';
 import { formatCO2 } from '../utils/formatters';
 import { sanitizeString, toSafeNumber } from '../utils/sanitize';
 

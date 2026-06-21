@@ -146,6 +146,7 @@ export default function Profile() {
     }
   };
 
+  // eslint-disable-next-line react/prop-types
   const Field = ({ id, label, type = 'text', children, error, ...rest }) => (
     <div>
       <label htmlFor={id} className="form-label">{label}</label>

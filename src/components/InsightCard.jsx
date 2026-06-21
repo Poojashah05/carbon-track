@@ -3,7 +3,7 @@
  * @description Displays a single AI-generated insight report with accordion expand/collapse.
  */
 
-import { useState } from 'react';
+
 import PropTypes from 'prop-types';
 import { ChevronDown, Sparkles } from 'lucide-react';
 import { formatDate } from '../utils/formatters';

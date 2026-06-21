@@ -12,7 +12,7 @@ import {
   compareToGlobalAverage,
   INDIA_MONTHLY_AVG_KG,
   GLOBAL_MONTHLY_AVG_KG,
-} from '../../utils/emissionFactors';
+} from '../utils/emissionFactors';
 
 // ─── calculateEmission ───────────────────────────────────────────────
 
