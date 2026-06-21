@@ -1,348 +1,394 @@
-/**
- * @file Onboarding.jsx
- * @description 3-step onboarding form with progress indicator and Supabase profiles save.
- */
+import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { useEmissions } from '../hooks/useEmissions'
+import { useAuth } from '../contexts/AuthContext'
+import { Check } from 'lucide-react'
+import { sanitize } from '../utils/sanitize'
+
+const STEPS = { PERSONAL: 1, TRANSPORT: 2, ENERGY: 3 }
+
+const TRANSPORT_MODES = {
+  car_petrol: 'Car (Petrol)',
+  car_diesel: 'Car (Diesel)',
+  car_electric: 'Car (Electric)',
+  bus: 'Bus',
+  train: 'Train',
+  metro: 'Metro',
+  auto_rickshaw: 'Auto Rickshaw',
+  two_wheeler_petrol: '2-Wheeler (Petrol)',
+  two_wheeler_electric: '2-Wheeler (Electric)',
+  flight_domestic: 'Flight (Domestic)',
+  flight_international: 'Flight (International)',
+  bicycle: 'Bicycle',
+  walking: 'Walking',
+}
+
+const DIETS = {
+  mutton: 'Mutton / Lamb',
+  chicken: 'Chicken',
+  fish: 'Fish / Seafood',
+  paneer: 'Paneer / Dairy',
+  egg: 'Eggs',
+  dal: 'Dal / Pulses',
+  rice_meal: 'Rice + Sabzi',
+  veg_thali: 'Veg Thali',
+  vegan: 'Fully Plant-Based',
+}
+
+const ENERGY_SOURCES = {
+  electricity_india: 'Electricity (India Grid)',
+  electricity_solar: 'Solar (Rooftop)',
+  natural_gas: 'Natural Gas (PNG)',
+  lpg: 'LPG (Cooking Gas)',
+  kerosene: 'Kerosene',
+}
+
+const inputClass = (hasError) =>
+  `w-full px-4 py-3 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-dark focus:border-transparent transition-colors ${
+    hasError ? 'border-red-400 bg-red-50' : 'border-gray-300 bg-white'
+  }`
 
 // No props — reads state via hooks/context
-
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Leaf, ChevronRight, ChevronLeft } from 'lucide-react';
-import supabase from '../lib/supabaseClient';
-import { sanitizeString, toSafeNumber } from '../utils/sanitize';
-import logger from '../utils/logger';
-
-const STEPS = ['Personal', 'Transport', 'Energy'];
-
-const TRANSPORT_OPTIONS = [
-  { value: 'car_petrol', label: 'Car (Petrol)' },
-  { value: 'car_diesel', label: 'Car (Diesel)' },
-  { value: 'car_electric', label: 'Car (Electric)' },
-  { value: 'two_wheeler_petrol', label: '2-Wheeler (Petrol)' },
-  { value: 'two_wheeler_electric', label: '2-Wheeler (Electric)' },
-  { value: 'bus', label: 'Bus' },
-  { value: 'train', label: 'Train' },
-  { value: 'metro', label: 'Metro' },
-  { value: 'bicycle', label: 'Bicycle' },
-  { value: 'walking', label: 'Walking' },
-];
-
-const DIET_OPTIONS = [
-  { value: 'vegan', label: 'Vegan' },
-  { value: 'veg_thali', label: 'Vegetarian' },
-  { value: 'chicken', label: 'Non-Veg (Chicken/Fish)' },
-  { value: 'mutton', label: 'Non-Veg (Mutton/Red Meat)' },
-];
-
-const ENERGY_OPTIONS = [
-  { value: 'electricity_india', label: 'India Grid Electricity' },
-  { value: 'electricity_solar', label: 'Solar / Rooftop' },
-  { value: 'lpg', label: 'LPG Cooking Gas' },
-  { value: 'natural_gas', label: 'Natural Gas (PNG)' },
-];
-
 export default function Onboarding() {
-  const navigate = useNavigate();
-  const [step, setStep] = useState(0);
-  const [isSaving, setIsSaving] = useState(false);
-  const [errors, setErrors] = useState({});
-  const [user, setUser] = useState(null);
-
+  const { setProfile } = useEmissions()
+  const { user, profile } = useAuth()
+  const navigate = useNavigate()
+  const [currentStep, setCurrentStep] = useState(STEPS.PERSONAL)
   const [formData, setFormData] = useState({
-    // Step 1
     name: '',
-    location: 'India',
-    // Step 2
-    primary_transport: 'car_petrol',
-    weekly_km: '',
-    diet_type: 'veg_thali',
-    // Step 3
-    energy_source: 'electricity_india',
-    monthly_kwh: '',
-    household_size: '3',
-  });
+    location: 'india',
+    transport: '',
+    weeklyKm: '',
+    diet: '',
+    energySource: '',
+    electricityBill: '',
+    householdSize: 1,
+  })
+  const [errors, setErrors] = useState({})
 
+  // Pre-populate name from OAuth metadata or profile
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      const u = session?.user;
-      if (u) {
-        setUser(u);
-        setFormData((prev) => ({
-          ...prev,
-          name: u.user_metadata?.full_name ?? u.user_metadata?.name ?? '',
-        }));
-      }
-    });
-  }, []);
+    if (profile?.name && !formData.name) {
+      setFormData(prev => ({ ...prev, name: profile.name }))
+    } else if (user?.user_metadata?.full_name && !formData.name) {
+      setFormData(prev => ({ ...prev, name: user.user_metadata.full_name }))
+    } else if (user?.user_metadata?.name && !formData.name) {
+      setFormData(prev => ({ ...prev, name: user.user_metadata.name }))
+    }
+  }, [profile, user, formData.name])
 
-  const update = (key, value) => setFormData((p) => ({ ...p, [key]: value }));
+  const update = (key, value) => {
+    setFormData((prev) => ({ ...prev, [key]: value }))
+    setErrors((prev) => ({ ...prev, [key]: undefined }))
+  }
 
-  const validateStep = () => {
-    const errs = {};
-    if (step === 0) {
-      if (!formData.name.trim()) errs.name = 'Name is required.';
+  const validateStep = (step) => {
+    const newErrors = {}
+
+    if (step === STEPS.PERSONAL) {
+      if (!sanitize.name(formData.name)) newErrors.name = 'Please enter your name'
+      if (!formData.location) newErrors.location = 'Please select your location'
     }
-    if (step === 1) {
-      if (!formData.weekly_km || toSafeNumber(formData.weekly_km) <= 0)
-        errs.weekly_km = 'Enter a valid weekly km estimate.';
+
+    if (step === STEPS.TRANSPORT) {
+      if (!formData.transport) newErrors.transport = 'Please select your primary transport'
+      if (!formData.weeklyKm || Number.parseFloat(formData.weeklyKm) <= 0)
+        newErrors.weeklyKm = 'Please enter a valid weekly distance'
+      if (!formData.diet) newErrors.diet = 'Please select your diet type'
     }
-    if (step === 2) {
-      if (!formData.monthly_kwh || toSafeNumber(formData.monthly_kwh) <= 0)
-        errs.monthly_kwh = 'Enter a valid monthly electricity usage.';
-      if (!formData.household_size || toSafeNumber(formData.household_size) < 1)
-        errs.household_size = 'Household size must be at least 1.';
+
+    if (step === STEPS.ENERGY) {
+      if (!formData.energySource) newErrors.energySource = 'Please select your energy source'
+      if (!formData.electricityBill || Number.parseFloat(formData.electricityBill) <= 0)
+        newErrors.electricityBill = 'Please enter a valid monthly electricity usage'
+      if (!formData.householdSize || Number.parseInt(formData.householdSize) < 1)
+        newErrors.householdSize = 'Please enter a valid household size'
     }
-    return errs;
-  };
+
+    setErrors(newErrors)
+    return Object.keys(newErrors).length === 0
+  }
 
   const handleNext = () => {
-    const errs = validateStep();
-    if (Object.keys(errs).length > 0) { setErrors(errs); return; }
-    setErrors({});
-    setStep((s) => s + 1);
-  };
-
-  const handleBack = () => { setErrors({}); setStep((s) => s - 1); };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    const errs = validateStep();
-    if (Object.keys(errs).length > 0) { setErrors(errs); return; }
-
-    setIsSaving(true);
-    try {
-      const profile = {
-        user_id: user?.id,
-        name: sanitizeString(formData.name),
-        location: formData.location,
-        primary_transport: formData.primary_transport,
-        weekly_km: toSafeNumber(formData.weekly_km),
-        diet_type: formData.diet_type,
-        energy_source: formData.energy_source,
-        monthly_kwh: toSafeNumber(formData.monthly_kwh),
-        household_size: toSafeNumber(formData.household_size),
-        onboarded: true,
-      };
-
-      const { error } = await supabase.from('profiles').upsert(profile, { onConflict: 'user_id' });
-      if (error) throw error;
-      navigate('/dashboard');
-    } catch (err) {
-      logger.error('Onboarding save failed:', err);
-      setErrors({ submit: 'Failed to save profile. Please try again.' });
-    } finally {
-      setIsSaving(false);
+    if (validateStep(currentStep)) {
+      if (currentStep === STEPS.ENERGY) {
+        handleComplete()
+      } else {
+        setCurrentStep((prev) => prev + 1)
+      }
     }
-  };
+  }
+
+  const handleBack = () => {
+    setCurrentStep((prev) => prev - 1)
+    setErrors({})
+  }
+
+  const handleComplete = async () => {
+    const profileUpdates = {
+      name: sanitize.name(formData.name),
+      location: formData.location,
+      transport: formData.transport,
+      weekly_km: Number.parseFloat(formData.weeklyKm),
+      diet: formData.diet,
+      energy_source: formData.energySource,
+      electricity_kwh: Number.parseFloat(formData.electricityBill),
+      household_size: Number.parseInt(formData.householdSize),
+      onboarding_done: true,
+    }
+
+    const { error } = await setProfile(profileUpdates)
+    if (!error) {
+      navigate('/', { replace: true })
+    } else {
+      setErrors({ submit: 'Failed to save profile. Please try again.' })
+    }
+  }
+
+  const stepTitles = ['Personal Info', 'Transport & Diet', 'Home Energy']
+  const stepProgress = ((currentStep - 1) / 3) * 100
 
   return (
-    <div className="min-h-screen bg-canvas flex items-center justify-center p-6">
+    <div className="min-h-screen bg-offwhite flex items-center justify-center p-4">
       <div className="w-full max-w-lg">
         {/* Brand */}
-        <div className="flex items-center gap-2 mb-8">
-          <div className="w-8 h-8 bg-forest rounded flex items-center justify-center">
-            <Leaf size={16} className="text-white" />
-          </div>
-          <span className="text-lg font-semibold text-charcoal">CO2Track</span>
+        <div className="text-center mb-8">
+          <h1 className="text-2xl font-semibold text-charcoal">CO₂Track</h1>
+          <p className="text-sm text-gray-500 mt-1">Set up your profile to get started</p>
         </div>
 
-        {/* Step indicator */}
-        <div className="flex items-center gap-3 mb-8">
-          {STEPS.map((label, i) => (
-            <div key={label} className="flex items-center gap-2">
-              <div
-                className={`step-dot ${i < step ? 'step-dot-done' : i === step ? 'step-dot-active' : 'step-dot-pending'}`}
-              >
-                {i < step ? '✓' : i + 1}
-              </div>
-              <span className={`text-xs ${i === step ? 'text-charcoal font-medium' : 'text-text-muted'}`}>
-                {label}
-              </span>
-              {i < STEPS.length - 1 && <div className="h-px w-8 bg-border" />}
+        <div className="bg-white border border-gray-200 rounded-xl p-6 sm:p-8">
+          {errors.submit && (
+            <div className="mb-4 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg p-3">
+              {errors.submit}
             </div>
-          ))}
-        </div>
+          )}
+          {/* Progress */}
+          <div className="mb-8">
+            <div className="flex justify-between items-center mb-3">
+              {stepTitles.map((title, i) => (
+                <div
+                  key={title}
+                  className={`flex items-center gap-1.5 text-xs font-medium ${
+                    i + 1 < currentStep
+                      ? 'text-green-dark'
+                      : i + 1 === currentStep
+                      ? 'text-charcoal'
+                      : 'text-gray-400'
+                  }`}
+                >
+                  <span
+                    className={`w-5 h-5 rounded-full flex items-center justify-center text-xs ${
+                      i + 1 < currentStep
+                        ? 'bg-green-dark text-white'
+                        : i + 1 === currentStep
+                        ? 'bg-charcoal text-white'
+                        : 'bg-gray-200 text-gray-400'
+                    }`}
+                  >
+                    {i + 1 < currentStep ? <Check className="h-3 w-3" strokeWidth={2.5} /> : i + 1}
+                  </span>
+                  <span className="hidden sm:block">{title}</span>
+                </div>
+              ))}
+            </div>
+            <div className="h-1 bg-gray-100 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-green-dark transition-all duration-500 ease-out rounded-full"
+                style={{ width: `${stepProgress}%` }}
+              />
+            </div>
+          </div>
 
-        {/* Card */}
-        <div className="card p-6">
-          <form onSubmit={handleSubmit} noValidate>
+          {/* Step 1: Personal */}
+          {currentStep === STEPS.PERSONAL && (
+            <section aria-label="Personal information">
+              <h2 className="text-lg font-medium text-charcoal mb-1">Personal Information</h2>
+              <p className="text-sm text-gray-500 mb-6">Tell us a bit about yourself</p>
 
-            {/* ── Step 0: Personal ─────────────────────── */}
-            {step === 0 && (
-              <section aria-labelledby="step-personal-title" className="space-y-4 animate-fade-in">
-                <h1 id="step-personal-title" className="text-xl font-semibold text-charcoal">
-                  Welcome! Tell us about yourself
-                </h1>
-                <p className="text-sm text-text-muted">
-                  We use this to personalise your carbon insights.
-                </p>
-
+              <div className="space-y-4">
                 <div>
-                  <label htmlFor="onboard-name" className="form-label">Full Name</label>
+                  <label htmlFor="name" className="block text-sm font-medium text-charcoal mb-1.5">
+                    Full Name
+                  </label>
                   <input
-                    id="onboard-name"
+                    id="name"
                     type="text"
-                    className="form-input"
-                    placeholder="Your name"
                     value={formData.name}
                     onChange={(e) => update('name', e.target.value)}
+                    className={inputClass(errors.name)}
+                    placeholder="Your first name"
+                    autoComplete="given-name"
                   />
-                  {errors.name && <p className="text-xs text-danger mt-1">{errors.name}</p>}
+                  {errors.name && <p className="text-red-600 text-xs mt-1">{errors.name}</p>}
                 </div>
 
                 <div>
-                  <label htmlFor="onboard-location" className="form-label">Region</label>
+                  <label htmlFor="location" className="block text-sm font-medium text-charcoal mb-1.5">
+                    Location
+                  </label>
                   <select
-                    id="onboard-location"
-                    className="form-select"
+                    id="location"
                     value={formData.location}
                     onChange={(e) => update('location', e.target.value)}
+                    className={inputClass(errors.location)}
                   >
-                    <option value="India">India</option>
-                    <option value="Global">Global / Other</option>
+                    <option value="india">India</option>
+                    <option value="global">Global / Other</option>
                   </select>
+                  {errors.location && <p className="text-red-600 text-xs mt-1">{errors.location}</p>}
                 </div>
-              </section>
-            )}
+              </div>
+            </section>
+          )}
 
-            {/* ── Step 1: Transport ────────────────────── */}
-            {step === 1 && (
-              <section aria-labelledby="step-transport-title" className="space-y-4 animate-fade-in">
-                <h2 id="step-transport-title" className="text-xl font-semibold text-charcoal">
-                  How do you get around?
-                </h2>
+          {/* Step 2: Transport & Diet */}
+          {currentStep === STEPS.TRANSPORT && (
+            <section aria-label="Transport and diet information">
+              <h2 className="text-lg font-medium text-charcoal mb-1">Transport &amp; Diet</h2>
+              <p className="text-sm text-gray-500 mb-6">Your primary mode of transport and eating habits</p>
 
+              <div className="space-y-4">
                 <div>
-                  <label htmlFor="onboard-transport" className="form-label">Primary Transport Mode</label>
+                  <label htmlFor="transport" className="block text-sm font-medium text-charcoal mb-1.5">
+                    Primary Transport
+                  </label>
                   <select
-                    id="onboard-transport"
-                    className="form-select"
-                    value={formData.primary_transport}
-                    onChange={(e) => update('primary_transport', e.target.value)}
+                    id="transport"
+                    value={formData.transport}
+                    onChange={(e) => update('transport', e.target.value)}
+                    className={inputClass(errors.transport)}
                   >
-                    {TRANSPORT_OPTIONS.map(({ value, label }) => (
-                      <option key={value} value={value}>{label}</option>
+                    <option value="">Select mode of transport</option>
+                    {Object.entries(TRANSPORT_MODES).map(([key, label]) => (
+                      <option key={key} value={key}>{label}</option>
                     ))}
                   </select>
+                  {errors.transport && <p className="text-red-600 text-xs mt-1">{errors.transport}</p>}
                 </div>
 
                 <div>
-                  <label htmlFor="onboard-km" className="form-label">Weekly km estimate</label>
+                  <label htmlFor="weeklyKm" className="block text-sm font-medium text-charcoal mb-1.5">
+                    Estimated Weekly Distance (km)
+                  </label>
                   <input
-                    id="onboard-km"
+                    id="weeklyKm"
                     type="number"
+                    value={formData.weeklyKm}
+                    onChange={(e) => update('weeklyKm', e.target.value)}
+                    className={inputClass(errors.weeklyKm)}
+                    placeholder="e.g. 50"
                     min="0"
-                    step="any"
-                    className="form-input"
-                    placeholder="e.g. 80"
-                    value={formData.weekly_km}
-                    onChange={(e) => update('weekly_km', e.target.value)}
+                    step="1"
                   />
-                  {errors.weekly_km && <p className="text-xs text-danger mt-1">{errors.weekly_km}</p>}
+                  {errors.weeklyKm && <p className="text-red-600 text-xs mt-1">{errors.weeklyKm}</p>}
                 </div>
 
                 <div>
-                  <label htmlFor="onboard-diet" className="form-label">Diet Type</label>
+                  <label htmlFor="diet" className="block text-sm font-medium text-charcoal mb-1.5">
+                    Diet Type
+                  </label>
                   <select
-                    id="onboard-diet"
-                    className="form-select"
-                    value={formData.diet_type}
-                    onChange={(e) => update('diet_type', e.target.value)}
+                    id="diet"
+                    value={formData.diet}
+                    onChange={(e) => update('diet', e.target.value)}
+                    className={inputClass(errors.diet)}
                   >
-                    {DIET_OPTIONS.map(({ value, label }) => (
-                      <option key={value} value={value}>{label}</option>
+                    <option value="">Select your diet</option>
+                    {Object.entries(DIETS).map(([key, label]) => (
+                      <option key={key} value={key}>{label}</option>
                     ))}
                   </select>
+                  {errors.diet && <p className="text-red-600 text-xs mt-1">{errors.diet}</p>}
                 </div>
-              </section>
-            )}
+              </div>
+            </section>
+          )}
 
-            {/* ── Step 2: Energy ───────────────────────── */}
-            {step === 2 && (
-              <section aria-labelledby="step-energy-title" className="space-y-4 animate-fade-in">
-                <h2 id="step-energy-title" className="text-xl font-semibold text-charcoal">
-                  Home Energy Usage
-                </h2>
+          {/* Step 3: Energy */}
+          {currentStep === STEPS.ENERGY && (
+            <section aria-label="Home energy information">
+              <h2 className="text-lg font-medium text-charcoal mb-1">Home Energy</h2>
+              <p className="text-sm text-gray-500 mb-6">Your household energy consumption</p>
 
+              <div className="space-y-4">
                 <div>
-                  <label htmlFor="onboard-energy" className="form-label">Primary Energy Source</label>
+                  <label htmlFor="energySource" className="block text-sm font-medium text-charcoal mb-1.5">
+                    Primary Energy Source
+                  </label>
                   <select
-                    id="onboard-energy"
-                    className="form-select"
-                    value={formData.energy_source}
-                    onChange={(e) => update('energy_source', e.target.value)}
+                    id="energySource"
+                    value={formData.energySource}
+                    onChange={(e) => update('energySource', e.target.value)}
+                    className={inputClass(errors.energySource)}
                   >
-                    {ENERGY_OPTIONS.map(({ value, label }) => (
-                      <option key={value} value={value}>{label}</option>
+                    <option value="">Select energy source</option>
+                    {Object.entries(ENERGY_SOURCES).map(([key, label]) => (
+                      <option key={key} value={key}>{label}</option>
                     ))}
                   </select>
+                  {errors.energySource && <p className="text-red-600 text-xs mt-1">{errors.energySource}</p>}
                 </div>
 
                 <div>
-                  <label htmlFor="onboard-kwh" className="form-label">Avg Monthly Electricity (kWh)</label>
+                  <label htmlFor="electricityBill" className="block text-sm font-medium text-charcoal mb-1.5">
+                    Monthly Electricity Usage (kWh)
+                  </label>
                   <input
-                    id="onboard-kwh"
+                    id="electricityBill"
                     type="number"
+                    value={formData.electricityBill}
+                    onChange={(e) => update('electricityBill', e.target.value)}
+                    className={inputClass(errors.electricityBill)}
+                    placeholder="e.g. 250"
                     min="0"
-                    step="any"
-                    className="form-input"
-                    placeholder="e.g. 200"
-                    value={formData.monthly_kwh}
-                    onChange={(e) => update('monthly_kwh', e.target.value)}
+                    step="1"
                   />
-                  {errors.monthly_kwh && <p className="text-xs text-danger mt-1">{errors.monthly_kwh}</p>}
+                  {errors.electricityBill && <p className="text-red-600 text-xs mt-1">{errors.electricityBill}</p>}
                 </div>
 
                 <div>
-                  <label htmlFor="onboard-household" className="form-label">Household Size (people)</label>
+                  <label htmlFor="householdSize" className="block text-sm font-medium text-charcoal mb-1.5">
+                    Household Size (people)
+                  </label>
                   <input
-                    id="onboard-household"
+                    id="householdSize"
                     type="number"
+                    value={formData.householdSize}
+                    onChange={(e) => update('householdSize', e.target.value)}
+                    className={inputClass(errors.householdSize)}
+                    placeholder="e.g. 3"
                     min="1"
                     max="20"
-                    className="form-input"
-                    placeholder="e.g. 3"
-                    value={formData.household_size}
-                    onChange={(e) => update('household_size', e.target.value)}
+                    step="1"
                   />
-                  {errors.household_size && <p className="text-xs text-danger mt-1">{errors.household_size}</p>}
+                  {errors.householdSize && <p className="text-red-600 text-xs mt-1">{errors.householdSize}</p>}
                 </div>
+              </div>
+            </section>
+          )}
 
-                {errors.submit && (
-                  <p className="text-xs text-danger p-3 bg-red-50 border border-red-200 rounded">
-                    {errors.submit}
-                  </p>
-                )}
-              </section>
-            )}
-
-            {/* Navigation */}
-            <div className="flex items-center justify-between mt-6 pt-4 border-t border-border">
+          {/* Navigation buttons */}
+          <div className="flex gap-3 mt-8">
+            {currentStep > 1 && (
               <button
                 type="button"
-                className="btn-ghost"
                 onClick={handleBack}
-                disabled={step === 0}
+                className="px-5 py-2.5 border border-gray-300 text-charcoal rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-400"
               >
-                <ChevronLeft size={16} />
                 Back
               </button>
-
-              {step < STEPS.length - 1 ? (
-                <button type="button" className="btn-primary" onClick={handleNext}>
-                  Next
-                  <ChevronRight size={16} />
-                </button>
-              ) : (
-                <button type="submit" className="btn-primary" disabled={isSaving}>
-                  {isSaving ? 'Saving…' : 'Get Started'}
-                  {!isSaving && <ChevronRight size={16} />}
-                </button>
-              )}
-            </div>
-          </form>
+            )}
+            <button
+              type="button"
+              onClick={handleNext}
+              className="flex-1 bg-green-dark text-white py-2.5 px-5 rounded-lg text-sm font-medium hover:bg-green-med transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-green-dark"
+            >
+              {currentStep === STEPS.ENERGY ? 'Complete Setup' : 'Continue →'}
+            </button>
+          </div>
         </div>
       </div>
     </div>
-  );
+  )
 }

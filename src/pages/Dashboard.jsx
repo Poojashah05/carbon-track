@@ -1,205 +1,219 @@
-/**
- * @file Dashboard.jsx
- * @description Main dashboard — 3-column layout with emission gauge, category breakdown,
- *   and recent activity feed.
- */
+import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
+import { useEmissions } from '../hooks/useEmissions'
+import EmissionGauge from '../components/EmissionGauge'
+import CategoryBreakdown from '../components/CategoryBreakdown'
+import { formatCO2, formatDate } from '../utils/formatters'
+import { compareToGlobalAverage } from '../utils/emissionFactors'
+import { PlusCircle, Clock } from 'lucide-react'
+
+const CATEGORY_COLORS = {
+  transport: '#2d6a4f',
+  food: '#52b788',
+  energy: '#a8d8a8',
+  shopping: '#1a1a1a',
+}
 
 // No props — reads state via hooks/context
-
-import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import { PlusSquare, ArrowRight, Loader2 } from 'lucide-react';
-import EmissionGauge from '../components/EmissionGauge';
-import CategoryBreakdown from '../components/CategoryBreakdown';
-import ProgressBar from '../components/ProgressBar';
-import { useEmissions } from '../hooks/useEmissions';
-import {
-  getTotalMonthlyEmission,
-  getCategoryBreakdown,
-  compareToGlobalAverage,
-  INDIA_MONTHLY_AVG_KG,
-  GLOBAL_MONTHLY_AVG_KG,
-} from '../utils/emissionFactors';
-import { formatCO2, formatDate } from '../utils/formatters';
-
-const CATEGORY_ICON_MAP = { transport: '🚗', food: '🍽️', energy: '⚡', shopping: '🛍️' };
-
 export default function Dashboard() {
-  const { logs, isLoading, error } = useEmissions();
-  const [profile, setProfile] = useState(null);
+  const { totalMonthlyEmission, categoryBreakdown, userProfile, isLoading, logs } = useEmissions()
+  const [countUp, setCountUp] = useState(0)
 
-  const totalKg = getTotalMonthlyEmission(logs);
-  const breakdown = getCategoryBreakdown(logs);
-  const comparison = compareToGlobalAverage(totalKg);
-  const recentLogs = logs.slice(0, 8);
+  const comparison = compareToGlobalAverage(totalMonthlyEmission)
+  const recentLogs = logs.slice(0, 5)
 
+  // Animated count-up
   useEffect(() => {
-    const stored = localStorage.getItem('co2track_profile');
-    if (stored) try { setProfile(JSON.parse(stored)); } catch { /* ignore */ }
-  }, []);
+    if (isLoading) return
+    const target = totalMonthlyEmission
+    const duration = 1200
+    const startTime = performance.now()
+
+    const animate = (now) => {
+      const elapsed = now - startTime
+      const progress = Math.min(elapsed / duration, 1)
+      const ease = 1 - Math.pow(1 - progress, 3)
+      setCountUp(target * ease)
+      if (progress < 1) requestAnimationFrame(animate)
+    }
+    requestAnimationFrame(animate)
+  }, [totalMonthlyEmission, isLoading])
+
+  const maxBar = Math.max(totalMonthlyEmission, 391.67, 1)
+  const comparisonBars = [
+    { label: 'You', value: totalMonthlyEmission, color: comparison.isAboveAverage ? '#dc2626' : '#2d6a4f' },
+    { label: 'India avg', value: 230, color: '#52b788' },
+    { label: 'Global avg', value: 391.67, color: '#94a3b8' },
+  ]
 
   return (
-    <div className="page-container">
-      {/* Page header */}
-      <header className="mb-6">
-        <h1 className="text-2xl font-semibold text-charcoal">Dashboard</h1>
-        <p className="text-sm text-text-muted mt-1">
-          {new Date().toLocaleString('en-IN', { month: 'long', year: 'numeric' })} — Monthly Overview
-        </p>
-      </header>
-
-      {error && (
-        <div className="mb-4 px-4 py-3 bg-amber-50 border border-amber-200 rounded text-sm text-amber-700">
-          {error}
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold text-charcoal">
+            {userProfile ? `Welcome, ${userProfile.name}` : 'Your Dashboard'}
+          </h1>
+          <p className="text-sm text-gray-500 mt-0.5">
+            {new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })}
+          </p>
         </div>
-      )}
 
-      {/* 3-column grid */}
+        <Link
+          to="/log-activity"
+          className="flex items-center gap-2 bg-green-dark text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-green-med transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-green-dark"
+        >
+          <PlusCircle className="h-4 w-4" strokeWidth={1.5} />
+          Log Activity
+        </Link>
+      </div>
+
+      {/* Desktop Grid Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-
-        {/* ── Left 2/3 ─────────────────────────────────── */}
+        
+        {/* Main Column (2/3 width) */}
         <div className="lg:col-span-2 space-y-6">
-
-          {/* Gauge + Comparison row */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-
-            {/* Gauge card */}
-            <div className="card p-5 flex flex-col items-center justify-center">
-              {isLoading ? (
-                <div className="flex items-center gap-2 text-text-muted">
-                  <Loader2 size={18} className="animate-spin" />
-                  <span className="text-sm">Loading…</span>
-                </div>
-              ) : (
-                <EmissionGauge totalKg={totalKg} />
-              )}
+          {/* Emissions Hero (Gauge and Comparison side-by-side on tablet/desktop) */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Gauge */}
+            <div className="bg-white border border-gray-200 rounded-lg p-6 flex flex-col items-center">
+              <h2 className="text-sm font-medium text-gray-500 mb-1 self-start">Monthly CO₂</h2>
+              <div className="text-4xl font-semibold text-charcoal mt-2">
+                {isLoading ? '—' : formatCO2(countUp)}
+              </div>
+              <span
+                className={`mt-2 inline-flex items-center px-2.5 py-0.5 rounded text-xs font-medium ${
+                  comparison.isAboveAverage
+                    ? 'bg-red-50 text-red-700 border border-red-200'
+                    : 'bg-green-light text-green-dark border border-green-med/40'
+                }`}
+              >
+                {comparison.isAboveAverage ? '▲' : '▼'} {comparison.percent}% {comparison.status} global avg
+              </span>
+              <div className="w-full mt-6">
+                <EmissionGauge
+                  totalKg={totalMonthlyEmission}
+                  status={comparison.status}
+                  isLoading={isLoading}
+                />
+              </div>
             </div>
 
-            {/* Comparison card */}
-            <div className="card p-5 space-y-4">
-              <h2 className="text-sm font-semibold text-charcoal">How you compare</h2>
-
-              <div className="space-y-3">
-                <div>
-                  <div className="flex justify-between items-center mb-1">
-                    <span className="text-xs text-text-muted">India avg ({INDIA_MONTHLY_AVG_KG} kg)</span>
-                    <span className={`text-xs font-medium tabular-nums
-                      ${comparison.indiaPercent > 0 ? 'text-danger' : 'text-mint'}`}>
-                      {comparison.vsIndia}
-                    </span>
-                  </div>
-                  <ProgressBar
-                    value={totalKg}
-                    max={INDIA_MONTHLY_AVG_KG * 2}
-                    color={comparison.indiaPercent > 0 ? 'danger' : 'mint'}
-                  />
-                </div>
-
-                <div>
-                  <div className="flex justify-between items-center mb-1">
-                    <span className="text-xs text-text-muted">Global avg ({GLOBAL_MONTHLY_AVG_KG} kg)</span>
-                    <span className={`text-xs font-medium tabular-nums
-                      ${comparison.globalPercent > 0 ? 'text-danger' : 'text-mint'}`}>
-                      {comparison.vsGlobal}
-                    </span>
-                  </div>
-                  <ProgressBar
-                    value={totalKg}
-                    max={GLOBAL_MONTHLY_AVG_KG * 2}
-                    color={comparison.globalPercent > 0 ? 'danger' : 'forest'}
-                  />
+            {/* Comparison bar */}
+            <div className="bg-white border border-gray-200 rounded-lg p-6 flex flex-col justify-between">
+              <div>
+                <h2 className="text-sm font-medium text-gray-500 mb-4">Comparison</h2>
+                <div className="space-y-5">
+                  {comparisonBars.map((item) => (
+                    <div key={item.label}>
+                      <div className="flex justify-between items-baseline mb-1.5">
+                        <span className="text-sm text-charcoal">{item.label}</span>
+                        <span className="text-sm font-medium" style={{ color: item.color }}>
+                          {formatCO2(item.value)}
+                        </span>
+                      </div>
+                      <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                        <div
+                          className="h-full rounded-full transition-all duration-1000 ease-out"
+                          style={{
+                            width: `${(item.value / maxBar) * 100}%`,
+                            backgroundColor: item.color,
+                          }}
+                        />
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
 
-              {/* Status */}
-              <div className="pt-2 border-t border-border">
-                <p className="text-xs text-text-muted">
-                  Your footprint is{' '}
-                  <span className="font-semibold text-charcoal">{formatCO2(totalKg)}</span>
-                  {' '}this month.
-                </p>
+              {/* Difference row */}
+              <div className="mt-6 pt-4 border-t border-gray-100 flex justify-between text-sm">
+                <span className="text-gray-500">vs. global average</span>
+                <span className={`font-medium ${comparison.isAboveAverage ? 'text-red-600' : 'text-green-dark'}`}>
+                  {comparison.isAboveAverage ? '+' : '−'}{formatCO2(Math.abs(comparison.diff))} {comparison.status}
+                </span>
               </div>
             </div>
           </div>
 
           {/* Category Breakdown */}
-          <CategoryBreakdown breakdown={breakdown} />
+          <CategoryBreakdown breakdown={categoryBreakdown} />
         </div>
 
-        {/* ── Right 1/3 ─────────────────────────────────── */}
-        <div className="space-y-4">
-
-          {/* Log Activity CTA */}
-          <Link
-            to="/log"
-            className="card p-4 flex items-center justify-between group
-                       hover:border-forest transition-colors duration-150 block"
-          >
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 bg-light-green rounded flex items-center justify-center">
-                <PlusSquare size={16} className="text-forest" />
-              </div>
-              <div>
-                <p className="text-sm font-medium text-charcoal">Log an Activity</p>
-                <p className="text-xs text-text-muted">Track transport, food, energy</p>
-              </div>
+        {/* Sidebar Column (1/3 width) */}
+        <div className="space-y-6">
+          {/* Recent Activity */}
+          <div className="bg-white border border-gray-200 rounded-lg p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-sm font-medium text-gray-500">Recent Activity</h2>
+              <Clock className="h-4 w-4 text-gray-400" strokeWidth={1.5} />
             </div>
-            <ArrowRight size={16} className="text-text-muted group-hover:text-forest transition-colors" />
-          </Link>
 
-          {/* Onboarding CTA (shown if no profile) */}
-          {!profile?.onboarded && (
-            <Link
-              to="/onboarding"
-              className="card p-4 flex items-center justify-between group
-                         border-amber/40 hover:border-amber transition-colors duration-150 block"
-            >
-              <div>
-                <p className="text-sm font-medium text-charcoal">Complete Setup</p>
-                <p className="text-xs text-text-muted">Set your baseline preferences</p>
-              </div>
-              <ArrowRight size={16} className="text-text-muted group-hover:text-amber transition-colors" />
-            </Link>
-          )}
-
-          {/* Recent Activity feed */}
-          <div className="card p-4">
-            <h2 className="text-sm font-semibold text-charcoal mb-3">Recent Activity</h2>
-            {isLoading && (
-              <div className="space-y-2">
-                {[1,2,3].map((i) => (
-                  <div key={i} className="skeleton h-12 rounded" />
-                ))}
-              </div>
-            )}
-            {!isLoading && recentLogs.length === 0 && (
-              <p className="text-xs text-text-muted py-4 text-center">
-                No activities logged this month.
-              </p>
-            )}
-            <ul className="space-y-2" aria-label="Recent activity log">
-              {recentLogs.map((log) => (
-                <li key={log.id} className="flex items-center justify-between py-2 border-b border-border last:border-0">
-                  <div className="flex items-center gap-2">
-                    <span className="text-base leading-none">
-                      {CATEGORY_ICON_MAP[log.category] ?? '•'}
-                    </span>
-                    <div>
-                      <p className="text-xs font-medium text-charcoal capitalize">
-                        {log.subcategory?.replace(/_/g, ' ')}
-                      </p>
-                      <p className="text-xs text-text-muted">{formatDate(log.logged_at)}</p>
+            {recentLogs.length > 0 ? (
+              <div className="divide-y divide-gray-100">
+                {recentLogs.map((log) => (
+                  <div key={log.id} className="flex items-center justify-between py-3">
+                    <div className="flex items-center gap-3">
+                      <div
+                        className="w-2 h-2 rounded-full flex-shrink-0"
+                        style={{ backgroundColor: CATEGORY_COLORS[log.category] || '#94a3b8' }}
+                      />
+                      <div>
+                        <span className="text-sm font-medium text-charcoal capitalize">{log.category}</span>
+                        <span className="text-sm text-gray-500 ml-2">
+                          {log.subcategory?.replace(/_/g, ' ')}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-sm font-medium text-charcoal">{formatCO2(log.co2Kg)}</div>
+                      <div className="text-xs text-gray-400">{formatDate(log.date)}</div>
                     </div>
                   </div>
-                  <span className="text-xs font-medium text-text-secondary tabular-nums">
-                    {formatCO2(log.kg_co2)}
-                  </span>
-                </li>
-              ))}
-            </ul>
+                ))}
+              </div>
+            ) : (
+              <div className="py-8 text-center text-gray-400 text-sm">
+                No activities logged yet
+              </div>
+            )}
           </div>
+
+          {/* CTA Card */}
+          <div className="bg-green-dark rounded-lg p-5 text-white flex flex-col justify-between min-h-[180px]">
+            <div>
+              <h3 className="font-semibold text-lg mb-2">Log Today's Activity</h3>
+              <p className="text-green-light/80 text-sm leading-relaxed">
+                Track what you eat, how you travel, and your energy use to get accurate insights.
+              </p>
+            </div>
+            <Link
+              to="/log-activity"
+              className="mt-4 flex items-center gap-2 bg-white text-green-dark px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-green-light transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-white self-start"
+            >
+              <PlusCircle className="h-4 w-4" strokeWidth={1.5} />
+              Add Activity
+            </Link>
+          </div>
+
+          {/* Onboarding CTA if no profile */}
+          {!isLoading && !userProfile && (
+            <div className="border border-green-med/30 bg-green-light/20 rounded-lg p-5">
+              <h3 className="font-medium text-green-dark mb-1">Complete your profile</h3>
+              <p className="text-sm text-gray-600 mb-3">
+                Set up your profile to get personalized insights and track your baseline emissions.
+              </p>
+              <Link
+                to="/onboarding"
+                className="text-sm font-medium text-green-dark border border-green-dark px-3 py-1.5 rounded hover:bg-green-dark hover:text-white transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-green-dark"
+              >
+                Get started →
+              </Link>
+            </div>
+          )}
         </div>
+
       </div>
     </div>
-  );
+  )
 }

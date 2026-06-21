@@ -1,126 +1,54 @@
 /**
- * @file useAIUsage.js
- * @description Tracks monthly AI insight generation count.
- *   Enforces a hard limit of 2 generations per calendar month per user.
+ * AI Insights usage tracking — 2 per calendar month per user
  */
+import { useState, useEffect, useCallback } from 'react'
+import { supabase } from '../lib/supabase'
+import { useAuth } from '../contexts/AuthContext'
 
-import { useState, useEffect, useCallback } from 'react';
-import supabase from '../lib/supabaseClient';
-import { getItem, setItem } from '../utils/storage';
-import logger from '../utils/logger';
+const MONTHLY_LIMIT = 2
 
-const MAX_MONTHLY = 2;
-const CACHE_KEY = 'ai_usage';
+function currentMonth() {
+  const now = new Date()
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+}
 
-/**
- * @typedef {Object} UseAIUsageReturn
- * @property {number} used - Number of generations used this month
- * @property {number} remaining - Remaining generations (0–2)
- * @property {boolean} canGenerate - Whether the user can still generate
- * @property {boolean} isLoading - Whether the usage data is loading
- * @property {function(): Promise<void>} recordUsage - Increments the usage counter
- */
-
-/**
- * Manages AI insight usage tracking and rate limiting.
- * @returns {UseAIUsageReturn}
- */
 export function useAIUsage() {
-  const [used, setUsed] = useState(0);
-  const [isLoading, setIsLoading] = useState(true);
-  const [user, setUser] = useState(null);
+  const { user } = useAuth()
+  const [count, setCount] = useState(0)
+  const [loading, setLoading] = useState(true)
 
-  const monthKey = () => {
-    const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-  };
+  const month = currentMonth()
 
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-    });
-  }, []);
+  const fetchUsage = useCallback(async () => {
+    if (!user) { setCount(0); setLoading(false); return }
+    const { data } = await supabase
+      .from('ai_usage')
+      .select('count')
+      .eq('user_id', user.id)
+      .eq('month', month)
+      .maybeSingle()
+    setCount(data?.count ?? 0)
+    setLoading(false)
+  }, [user, month])
 
-  useEffect(() => {
-    if (!user) {
-      // Fallback to localStorage
-      const cached = getItem(CACHE_KEY, {});
-      setUsed(cached[monthKey()] ?? 0);
-      setIsLoading(false);
-      return;
-    }
+  useEffect(() => { fetchUsage() }, [fetchUsage])
 
-    const fetchUsage = async () => {
-      setIsLoading(true);
-      try {
-        const mk = monthKey();
-        const { data, error } = await supabase
-          .from('ai_usage')
-          .select('count')
-          .eq('user_id', user.id)
-          .eq('month_key', mk)
-          .maybeSingle();
-
-        if (error) throw error;
-        const count = data?.count ?? 0;
-        setUsed(count);
-        setItem(CACHE_KEY, { [mk]: count });
-      } catch (err) {
-        logger.error('Failed to fetch AI usage:', err);
-        const cached = getItem(CACHE_KEY, {});
-        setUsed(cached[monthKey()] ?? 0);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchUsage();
-  }, [user]);
-
-  /**
-   * Records one AI generation usage.
-   * @returns {Promise<void>}
-   */
-  const recordUsage = useCallback(async () => {
-    const mk = monthKey();
-    const newCount = used + 1;
-
-    if (!user) {
-      setUsed(newCount);
-      setItem(CACHE_KEY, { [mk]: newCount });
-      return;
-    }
-
-    try {
-      const { data: existing } = await supabase
-        .from('ai_usage')
-        .select('id, count')
-        .eq('user_id', user.id)
-        .eq('month_key', mk)
-        .maybeSingle();
-
-      if (existing) {
-        await supabase
-          .from('ai_usage')
-          .update({ count: existing.count + 1 })
-          .eq('id', existing.id);
-      } else {
-        await supabase
-          .from('ai_usage')
-          .insert({ user_id: user.id, month_key: mk, count: 1 });
-      }
-      setUsed(newCount);
-      setItem(CACHE_KEY, { [mk]: newCount });
-    } catch (err) {
-      logger.error('Failed to record AI usage:', err);
-    }
-  }, [user, used]);
+  const incrementUsage = useCallback(async () => {
+    if (!user) return
+    const newCount = count + 1
+    await supabase.from('ai_usage').upsert(
+      { user_id: user.id, month, count: newCount },
+      { onConflict: 'user_id,month' }
+    )
+    setCount(newCount)
+  }, [user, month, count])
 
   return {
-    used,
-    remaining: Math.max(0, MAX_MONTHLY - used),
-    canGenerate: used < MAX_MONTHLY,
-    isLoading,
-    recordUsage,
-  };
+    count,
+    loading,
+    limit: MONTHLY_LIMIT,
+    remaining: Math.max(0, MONTHLY_LIMIT - count),
+    canUse: count < MONTHLY_LIMIT,
+    incrementUsage,
+  }
 }

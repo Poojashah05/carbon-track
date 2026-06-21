@@ -1,220 +1,263 @@
 /**
- * @file useGroqInsights.js
- * @description Groq API hook with token-by-token streaming, monthly rate limiting,
- *   Supabase caching, and localStorage sync.
+ * Custom hook for Groq API integration with streaming and persistent history support
  */
+import { useState, useCallback, useRef, useEffect } from 'react'
+import { supabase } from '../lib/supabase'
+import { useAuth } from '../contexts/AuthContext'
+import { storage } from '../utils/storage'
 
-import { useState, useCallback, useEffect } from 'react';
-import supabase from '../lib/supabaseClient';
-import { useAIUsage } from './useAIUsage';
-import { getItem, setItem } from '../utils/storage';
-import logger from '../utils/logger';
-
-const GROQ_ENDPOINT = 'https://api.groq.com/openai/v1/chat/completions';
-const MODEL = 'llama-3.1-8b-instant';
-const INSIGHTS_CACHE_KEY = 'ai_insights';
+const API_URL = 'https://api.groq.com/openai/v1/chat/completions'
+const MODEL = 'llama-3.1-8b-instant'
 
 /**
- * @typedef {Object} InsightReport
- * @property {string} id - UUID
- * @property {string} content - The AI-generated insight text
- * @property {string} created_at - ISO timestamp
- * @property {Object} emission_snapshot - The emission data used to generate this
+ * @typedef {Object} EmissionData
+ * @property {number} transportKg
+ * @property {number} foodKg
+ * @property {number} energyKg
+ * @property {number} shoppingKg
+ * @property {number} totalKg
+ * @property {string} status
+ * @property {string} percent
  */
 
-/**
- * @typedef {Object} UseGroqInsightsReturn
- * @property {InsightReport[]} reports - Historical insight reports (newest first)
- * @property {string} streamingContent - Currently streaming token content
- * @property {boolean} isStreaming - Whether a generation is in progress
- * @property {string|null} error - Error message if last generation failed
- * @property {function(): Promise<void>} generate - Triggers a new AI generation
- * @property {number} remainingCount - Number of AI generations left this month
- * @property {boolean} canGenerate - Whether user can still generate
- */
+export function useGroqInsights() {
+  const { user } = useAuth()
+  const [insights, setInsights] = useState('')
+  const [insightsHistory, setInsightsHistory] = useState([])
+  const [isLoading, setIsLoading] = useState(false)
+  const [isHistoryLoading, setIsHistoryLoading] = useState(false)
+  const [error, setError] = useState(null)
+  const abortControllerRef = useRef(null)
 
-/**
- * Builds the system prompt injecting user emission data.
- * @param {Object} emissions
- * @returns {string}
- */
-function buildSystemPrompt(emissions) {
-  const { transportKg, foodKg, energyKg, shoppingKg, totalKg, globalAvg } = emissions;
-  const pct = totalKg > 0
-    ? Math.abs(Math.round(((totalKg - globalAvg) / globalAvg) * 100))
-    : 0;
-  const status = totalKg > globalAvg ? 'above' : 'below';
-
-  return `You are CO2Track's carbon footprint advisor. The user's current monthly emissions are:
-- Transport: ${transportKg.toFixed(1)} kg CO₂
-- Food: ${foodKg.toFixed(1)} kg CO₂
-- Home energy: ${energyKg.toFixed(1)} kg CO₂
-- Shopping: ${shoppingKg.toFixed(1)} kg CO₂
-- Total: ${totalKg.toFixed(1)} kg CO₂/month
-- Global average: ${globalAvg} kg CO₂/month
-- User's status: ${status} average by ${pct}%
-
-Give specific, ranked, actionable advice based on THIS user's actual biggest emission category. Be concise. Never give generic climate facts. Always start with their highest-impact category. Format your response as 3 numbered insights, each under 60 words.`;
-}
-
-/**
- * Hook for Groq AI insight generation with streaming, caching, and rate limiting.
- * @param {Object} emissionData - User's categorised emission totals
- * @returns {UseGroqInsightsReturn}
- */
-export function useGroqInsights(emissionData) {
-  const [reports, setReports] = useState([]);
-  const [streamingContent, setStreamingContent] = useState('');
-  const [isStreaming, setIsStreaming] = useState(false);
-  const [error, setError] = useState(null);
-  const [user, setUser] = useState(null);
-  const { remaining, canGenerate, recordUsage } = useAIUsage();
-
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-    });
-  }, []);
-
-  // Load cached reports on mount
-  useEffect(() => {
-    const loadReports = async () => {
-      if (!user) {
-        const cached = getItem(INSIGHTS_CACHE_KEY, []);
-        setReports(cached);
-        return;
-      }
-      try {
-        const { data, error: sbErr } = await supabase
-          .from('ai_insights')
-          .select('*')
-          .eq('user_id', user.id)
-          .order('created_at', { ascending: false })
-          .limit(10);
-        if (sbErr) throw sbErr;
-        setReports(data || []);
-        setItem(INSIGHTS_CACHE_KEY, data || []);
-      } catch (err) {
-        logger.error('Failed to load AI insights:', err);
-        const cached = getItem(INSIGHTS_CACHE_KEY, []);
-        setReports(cached);
-      }
-    };
-    loadReports();
-  }, [user]);
-
-  /**
-   * Generates a new AI insight report via streaming.
-   * @returns {Promise<void>}
-   */
-  const generate = useCallback(async () => {
-    if (!canGenerate) {
-      setError('You have used all 2 AI insight generations for this month.');
-      return;
+  // ── Fetch history ───────────────────────────────────────
+  const fetchInsightsHistory = useCallback(async () => {
+    if (!user) {
+      setInsightsHistory([])
+      return
     }
-    if (isStreaming) return;
-
-    const apiKey = import.meta.env.VITE_GROQ_API_KEY;
-    if (!apiKey) {
-      setError('Groq API key is not configured. Please add VITE_GROQ_API_KEY to your .env file.');
-      return;
-    }
-
-    setIsStreaming(true);
-    setError(null);
-    setStreamingContent('');
+    setIsHistoryLoading(true)
 
     try {
-      await recordUsage();
+      const { data, error } = await supabase
+        .from('ai_insights')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
 
-      const systemPrompt = buildSystemPrompt(emissionData);
-      const response = await fetch(GROQ_ENDPOINT, {
+      if (!error && data) {
+        setInsightsHistory(data)
+        // Cache in local storage
+        storage.setItem(`co2track_ai_insights_${user.id}`, data)
+      } else {
+        // Fallback to local storage
+        const localData = storage.getItem(`co2track_ai_insights_${user.id}`, [])
+        setInsightsHistory(localData)
+      }
+    } catch {
+      // Fallback on exception
+      const localData = storage.getItem(`co2track_ai_insights_${user.id}`, [])
+      setInsightsHistory(localData)
+    } finally {
+      setIsHistoryLoading(false)
+    }
+  }, [user])
+
+  useEffect(() => {
+    fetchInsightsHistory()
+  }, [fetchInsightsHistory])
+
+  // ── Save new insight ─────────────────────────────────────
+  const saveInsight = useCallback(async (content) => {
+    if (!user || !content.trim()) return null
+
+    const newInsightRow = {
+      user_id: user.id,
+      content: content.trim(),
+      created_at: new Date().toISOString()
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('ai_insights')
+        .insert(newInsightRow)
+        .select()
+        .single()
+
+      if (!error && data) {
+        setInsightsHistory(prev => [data, ...prev])
+        // Sync local storage
+        const parsedLocal = storage.getItem(`co2track_ai_insights_${user.id}`, [])
+        storage.setItem(`co2track_ai_insights_${user.id}`, [data, ...parsedLocal])
+        return data
+      } else {
+        // Fallback to local storage (generate mock id)
+        const mockRow = { ...newInsightRow, id: Math.random().toString(36).substr(2, 9) }
+        setInsightsHistory(prev => [mockRow, ...prev])
+        const parsedLocal = storage.getItem(`co2track_ai_insights_${user.id}`, [])
+        storage.setItem(`co2track_ai_insights_${user.id}`, [mockRow, ...parsedLocal])
+        return mockRow
+      }
+    } catch {
+      // Fallback to local storage
+      const mockRow = { ...newInsightRow, id: Math.random().toString(36).substr(2, 9) }
+      setInsightsHistory(prev => [mockRow, ...prev])
+      const parsedLocal = storage.getItem(`co2track_ai_insights_${user.id}`, [])
+      storage.setItem(`co2track_ai_insights_${user.id}`, [mockRow, ...parsedLocal])
+      return mockRow
+    }
+  }, [user])
+
+  // ── Generate insights from Groq API using streaming ─────
+  const generateInsights = useCallback(async (emissionData) => {
+    const apiKey = import.meta.env.VITE_GROQ_API_KEY
+    if (!apiKey) {
+      setError('GROQ API key not configured. Add VITE_GROQ_API_KEY to your .env file.')
+      return
+    }
+
+    // Abort any in-progress request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort()
+    }
+    abortControllerRef.current = new AbortController()
+
+    setIsLoading(true)
+    setError(null)
+    setInsights('')
+
+    const systemPrompt = `You are EcoTrack's carbon footprint advisor. The user's current monthly emissions are:
+- Transport: ${emissionData.transportKg.toFixed(1)} kg CO₂
+- Food: ${emissionData.foodKg.toFixed(1)} kg CO₂
+- Home energy: ${emissionData.energyKg.toFixed(1)} kg CO₂
+- Shopping: ${emissionData.shoppingKg.toFixed(1)} kg CO₂
+- Total: ${emissionData.totalKg.toFixed(1)} kg CO₂/month
+- Global average: 391.67 kg CO₂/month
+- User's status: ${emissionData.status} average by ${emissionData.percent}%
+
+Give specific, ranked, actionable advice based on THIS user's actual biggest emission category. Be concise. Never give generic climate facts. Always start with their highest-impact category. Format your response as 3 numbered insights, each under 60 words.`
+
+    try {
+      const response = await fetch(API_URL, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`,
         },
         body: JSON.stringify({
           model: MODEL,
           messages: [
             { role: 'system', content: systemPrompt },
-            { role: 'user', content: 'Generate my personalised carbon reduction insights.' },
+            { role: 'user', content: 'Generate insights based on my emission data.' },
           ],
           stream: true,
           temperature: 0.7,
-          max_tokens: 512,
+          max_tokens: 500,
         }),
-      });
+        signal: abortControllerRef.current.signal,
+      })
 
       if (!response.ok) {
-        throw new Error(`Groq API error: ${response.status} ${response.statusText}`);
+        throw new Error(`API request failed: ${response.status} ${response.statusText}`)
       }
 
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder('utf-8');
-      let fullContent = '';
+      if (!response.body) {
+        throw new Error('No response body received from API')
+      }
+
+      const reader = response.body.getReader()
+      const decoder = new TextDecoder()
+      let fullResponse = ''
 
       while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
+        const { done, value } = await reader.read()
+        if (done) break
 
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split('\n');
+        const chunk = decoder.decode(value, { stream: true })
+        const lines = chunk.split('\n')
 
         for (const line of lines) {
-          if (!line.startsWith('data: ')) continue;
-          const json = line.replace('data: ', '').trim();
-          if (json === '[DONE]') break;
+          if (line.startsWith('data: ')) {
+            const data = line.slice(6).trim()
+            if (data === '[DONE]') continue
 
-          try {
-            const parsed = JSON.parse(json);
-            const delta = parsed.choices?.[0]?.delta?.content ?? '';
-            if (delta) {
-              fullContent += delta;
-              setStreamingContent((prev) => prev + delta);
+            try {
+              const parsed = JSON.parse(data)
+              const content = parsed.choices?.[0]?.delta?.content
+              if (content) {
+                fullResponse += content
+                setInsights(fullResponse)
+              }
+            } catch {
+              // Ignore malformed stream chunks
             }
-          } catch {
-            // Ignore malformed SSE chunks
           }
         }
       }
 
-      // Persist to Supabase and local state
-      const newReport = {
-        id: crypto.randomUUID(),
-        content: fullContent,
-        created_at: new Date().toISOString(),
-        emission_snapshot: emissionData,
-      };
-
-      if (user) {
-        const { data: saved } = await supabase
-          .from('ai_insights')
-          .insert({ ...newReport, user_id: user.id })
-          .select()
-          .single();
-        if (saved) newReport.id = saved.id;
+      // Stream successfully completed, save to history database
+      if (fullResponse.trim()) {
+        await saveInsight(fullResponse)
       }
-
-      const updatedReports = [newReport, ...reports];
-      setReports(updatedReports);
-      setItem(INSIGHTS_CACHE_KEY, updatedReports);
-      setStreamingContent('');
     } catch (err) {
-      logger.error('Groq streaming error:', err);
-      setError(err.message || 'Failed to generate insights. Please try again.');
+      if (err.name === 'AbortError') return
+      setError(err.message || 'Failed to generate insights. Please try again.')
     } finally {
-      setIsStreaming(false);
+      setIsLoading(false)
     }
-  }, [canGenerate, isStreaming, emissionData, recordUsage, user, reports]);
+  }, [saveInsight])
+
+  // ── Chat with Groq using conversation history ───────────
+  const chat = useCallback(async (userMessage, history, emissionData) => {
+    const apiKey = import.meta.env.VITE_GROQ_API_KEY
+    if (!apiKey) {
+      return 'API key not configured.'
+    }
+
+    const systemPrompt = `You are EcoTrack's carbon footprint advisor. The user's monthly emissions: Transport ${emissionData.transportKg?.toFixed(1) ?? 0} kg, Food ${emissionData.foodKg?.toFixed(1) ?? 0} kg, Energy ${emissionData.energyKg?.toFixed(1) ?? 0} kg, Shopping ${emissionData.shoppingKg?.toFixed(1) ?? 0} kg (Total: ${emissionData.totalKg?.toFixed(1) ?? 0} kg). Answer questions about reducing carbon footprint concisely and specifically.`
+
+    const messages = [
+      { role: 'system', content: systemPrompt },
+      ...history.slice(-4).map(m => ({ role: m.sender === 'user' ? 'user' : 'assistant', content: m.text })),
+      { role: 'user', content: userMessage },
+    ]
+
+    try {
+      const response = await fetch(API_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model: MODEL,
+          messages,
+          temperature: 0.7,
+          max_tokens: 300,
+        }),
+      })
+
+      if (!response.ok) throw new Error(`API error: ${response.status}`)
+      const data = await response.json()
+      return data.choices?.[0]?.message?.content || 'No response received.'
+    } catch (err) {
+      return `Error: ${err.message}`
+    }
+  }, [])
+
+  const retry = useCallback(() => {
+    setError(null)
+    setInsights('')
+  }, [])
 
   return {
-    reports,
-    streamingContent,
-    isStreaming,
+    insights,
+    insightsHistory,
+    isLoading,
+    isHistoryLoading,
     error,
-    generate,
-    remainingCount: remaining,
-    canGenerate,
-  };
+    generateInsights,
+    chat,
+    retry,
+    refetchHistory: fetchInsightsHistory,
+  }
 }

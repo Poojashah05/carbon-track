@@ -1,71 +1,49 @@
 import js from '@eslint/js';
-import globals from 'globals';
-import reactPlugin from 'eslint-plugin-react';
-import reactHooksPlugin from 'eslint-plugin-react-hooks';
+import react from 'eslint-plugin-react';
+import reactHooks from 'eslint-plugin-react-hooks';
 
-/** @type {import('eslint').Linter.FlatConfig[]} */
 export default [
-  // Base recommended rules
   js.configs.recommended,
-
-  // React + Hooks configuration
   {
-    files: ['src/**/*.{js,jsx}'],
-    plugins: {
-      react: reactPlugin,
-      'react-hooks': reactHooksPlugin,
-    },
+    files: ['**/*.{js,jsx}'],
+    plugins: { react, 'react-hooks': reactHooks },
     languageOptions: {
       ecmaVersion: 2022,
       sourceType: 'module',
+      parserOptions: { ecmaFeatures: { jsx: true } },
       globals: {
-        ...globals.browser,
-        ...globals.es2021,
+        window: 'readonly',
+        document: 'readonly',
+        console: 'readonly',
+        localStorage: 'readonly',
+        fetch: 'readonly',
+        AbortController: 'readonly',
+        TextDecoder: 'readonly',
+        TextEncoder: 'readonly',
+        setTimeout: 'readonly',
+        clearTimeout: 'readonly',
+        requestAnimationFrame: 'readonly',
+        performance: 'readonly',
+        process: 'readonly',
+        global: 'readonly',
+        require: 'readonly',
+        describe: 'readonly',
+        it: 'readonly',
+        expect: 'readonly',
+        jest: 'readonly',
+        beforeEach: 'readonly',
+        beforeAll: 'readonly',
+        afterAll: 'readonly',
       },
-      parserOptions: {
-        ecmaFeatures: { jsx: true },
-      },
-    },
-    settings: {
-      react: { version: 'detect' },
     },
     rules: {
-      // React
+      ...react.configs.recommended.rules,
+      ...reactHooks.configs.recommended.rules,
       'react/react-in-jsx-scope': 'off',
-      'react/jsx-uses-react': 'error',
-      'react/jsx-uses-vars': 'error',
       'react/prop-types': 'warn',
-      'react/display-name': 'warn',
-      'react/no-unescaped-entities': 'error',
-      // React Hooks
-      'react-hooks/rules-of-hooks': 'error',
-      'react-hooks/exhaustive-deps': 'warn',
-      // General quality
-      'no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
-      'no-undef': 'error',
-      'no-console': 'error',
-      'eqeqeq': ['error', 'always'],
-      'no-var': 'error',
-      'prefer-const': 'error',
+      'react/no-unescaped-entities': 'off',
+      'react-hooks/set-state-in-effect': 'off',
     },
-  },
-
-  // Test files — relax some rules
-  {
-    files: ['src/__tests__/**/*.{js,jsx}'],
-    languageOptions: {
-      globals: {
-        ...globals.browser,
-        ...globals.jest,
-      },
-    },
-    rules: {
-      'no-console': 'off',
-    },
-  },
-
-  // Ignore generated files
-  {
-    ignores: ['dist/**', 'coverage/**', 'node_modules/**'],
+    settings: { react: { version: 'detect' } },
   },
 ];

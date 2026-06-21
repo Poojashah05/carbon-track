@@ -7,18 +7,24 @@ export default {
   theme: {
     extend: {
       colors: {
-        // ── Core palette: Deep Indigo + Warm Amber + Ivory ──────────
-        canvas:        '#f8f7f4',   // warm ivory background
-        charcoal:      '#1c1917',   // warm near-black
-        forest:        '#312e81',   // deep indigo (primary)
-        mint:          '#6366f1',   // bright indigo-violet (accent)
-        'light-green': '#e0e7ff',   // pale indigo
+        // ── Core palette: Original Green + Warm Amber + Ivory ──────────
+        canvas:        '#f5f2eb',   // warm ivory background
+        charcoal:      '#1a1a1a',   // warm near-black
+        forest:        '#2d6a4f',   // deep green (primary)
+        mint:          '#52b788',   // green-med (accent)
+        'light-green': '#d8f3dc',   // green-light
+
+        // Aliases for compatibility
+        'green-dark':  '#2d6a4f',
+        'green-med':   '#52b788',
+        'green-light': '#d8f3dc',
+        offwhite:      '#f5f2eb',
 
         // Semantic shades
-        'forest-light': '#4338ca',
-        'forest-dark':  '#1e1b4b',
-        'mint-light':   '#818cf8',
-        'mint-dark':    '#4f46e5',
+        'forest-light': '#40916c',
+        'forest-dark':  '#1b4332',
+        'mint-light':   '#74c69d',
+        'mint-dark':    '#40916c',
 
         // Amber accent
         amber:      '#d97706',
@@ -26,21 +32,21 @@ export default {
         amberMid:   '#f59e0b',
 
         // Surface system
-        'surface-0':   '#f8f7f4',
-        'surface-1':   '#f0ede8',
-        'surface-2':   '#e8e4de',
-        border:        '#d6d3cd',
+        'surface-0':   '#f5f2eb',
+        'surface-1':   '#edeae0',
+        'surface-2':   '#e3e0d6',
+        border:        '#d0cdc4',
 
         // Typography
-        'text-primary':   '#1c1917',
-        'text-secondary': '#44403c',
-        'text-muted':     '#78716c',
+        'text-primary':   '#1a1a1a',
+        'text-secondary': '#4a4a4a',
+        'text-muted':     '#7a7a7a',
 
         // Status
-        success: '#312e81',
-        warning: '#d97706',
-        danger:  '#dc2626',
-        info:    '#0369a1',
+        success: '#2d6a4f',
+        warning: '#b5852a',
+        danger:  '#c0392b',
+        info:    '#2471a3',
       },
       fontFamily: {
         sans: ['Inter', 'system-ui', 'sans-serif'],

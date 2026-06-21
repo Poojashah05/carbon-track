@@ -1,72 +1,103 @@
+import { Check } from 'lucide-react'
+import PropTypes from 'prop-types'
+import { formatCO2 } from '../utils/formatters'
+
+const DIFFICULTY_STYLES = {
+  easy: {
+    badge: 'bg-green-light text-green-dark border-green-med/40',
+    points: 'text-green-dark',
+  },
+  medium: {
+    badge: 'bg-yellow-50 text-yellow-700 border-yellow-200',
+    points: 'text-yellow-600',
+  },
+  hard: {
+    badge: 'bg-red-50 text-red-700 border-red-200',
+    points: 'text-red-600',
+  },
+}
+
 /**
- * @file ChallengeCard.jsx
- * @description Weekly eco-challenge card with difficulty badge and mark-complete action.
- */
-
-import PropTypes from 'prop-types';
-import { CheckCircle2, Circle } from 'lucide-react';
-
-const DIFFICULTY_META = {
-  easy:   { label: 'Easy',   className: 'badge-green',  points: 10 },
-  medium: { label: 'Medium', className: 'badge-amber',  points: 25 },
-  hard:   { label: 'Hard',   className: 'badge-red',    points: 50 },
-};
-
-/**
- * A single weekly eco-challenge item.
+ * Challenge Card Component
+ * Displays a single eco-challenge with difficulty, potential savings, points, and actions.
+ * 
  * @param {Object} props
- * @param {string} props.id - Challenge ID.
- * @param {string} props.title - Challenge title.
- * @param {string} props.description - Short description of the challenge.
- * @param {'easy'|'medium'|'hard'} props.difficulty
- * @param {boolean} props.completed - Whether the user has completed this challenge.
- * @param {function(string): void} props.onToggle - Called with challenge ID on completion toggle.
+ * @param {Object} props.challenge - The challenge details
+ * @param {Function} [props.onAccept] - Handler for accepting the challenge
+ * @param {Function} [props.onComplete] - Handler for completing the challenge
  * @returns {JSX.Element}
  */
-export default function ChallengeCard({ id, title, description, difficulty, completed, onToggle }) {
-  const meta = DIFFICULTY_META[difficulty] ?? DIFFICULTY_META.easy;
+export default function ChallengeCard({ challenge, onAccept, onComplete }) {
+  const styles = DIFFICULTY_STYLES[challenge.difficulty] || DIFFICULTY_STYLES.easy
 
   return (
-    <article
-      className={`card p-4 flex flex-col gap-3 transition-all duration-200
-                  ${completed ? 'opacity-60' : 'hover:border-mint'}`}
-    >
+    <article className="bg-white border border-gray-200 rounded-lg p-4 flex flex-col">
       {/* Header */}
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex-1">
-          <div className="flex items-center gap-2 mb-1">
-            <span className={meta.className}>{meta.label}</span>
-            <span className="text-xs text-text-muted">+{meta.points} pts</span>
-          </div>
-          <h4 className={`text-sm font-semibold leading-snug ${completed ? 'line-through text-text-muted' : 'text-charcoal'}`}>
-            {title}
-          </h4>
-        </div>
-
-        {/* Complete toggle */}
-        <button
-          type="button"
-          onClick={() => onToggle(id)}
-          className="shrink-0 text-mint hover:text-forest transition-colors duration-150 mt-0.5"
-          aria-label={completed ? `Mark "${title}" incomplete` : `Mark "${title}" complete`}
+      <div className="flex justify-between items-start mb-2 gap-2">
+        <h3 className="font-semibold text-charcoal text-sm leading-snug">{challenge.title}</h3>
+        <span
+          className={`flex-shrink-0 px-2 py-0.5 rounded text-xs font-medium border ${styles.badge}`}
+          aria-label={`Difficulty: ${challenge.difficulty}`}
         >
-          {completed
-            ? <CheckCircle2 size={20} className="text-mint" />
-            : <Circle size={20} className="text-border" />
-          }
-        </button>
+          {challenge.difficulty.charAt(0).toUpperCase() + challenge.difficulty.slice(1)}
+        </span>
       </div>
 
-      <p className="text-xs text-text-muted leading-relaxed">{description}</p>
+      {/* Description */}
+      <p className="text-xs text-gray-600 leading-relaxed mb-4 flex-1">{challenge.description}</p>
+
+      {/* Savings + Points */}
+      <div className="flex items-center justify-between mb-3">
+        <div className="text-xs text-gray-600">
+          Est. saving:{' '}
+          <span className="font-medium text-green-dark">{formatCO2(challenge.saving)}</span>
+        </div>
+        <div className={`text-xs font-medium ${styles.points}`}>
+          {challenge.points} pts
+        </div>
+      </div>
+
+      {/* Action button */}
+      {challenge.isCompleted ? (
+        <div
+          className="w-full flex items-center justify-center gap-1.5 bg-green-light border border-green-med/40 rounded-lg py-2 text-xs font-medium text-green-dark"
+          aria-label={`Challenge completed, saved ${formatCO2(challenge.saving)}`}
+        >
+          <Check className="h-3.5 w-3.5" strokeWidth={2.5} />
+          Completed · {formatCO2(challenge.saving)} saved
+        </div>
+      ) : challenge.isAccepted ? (
+        <button
+          type="button"
+          onClick={() => onComplete?.(challenge.id)}
+          className="w-full bg-green-dark text-white py-2 rounded-lg text-xs font-medium hover:bg-green-med transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-green-dark"
+        >
+          Mark Complete
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={() => onAccept?.(challenge.id)}
+          className="w-full border border-green-dark text-green-dark py-2 rounded-lg text-xs font-medium hover:bg-green-light/50 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-green-dark"
+        >
+          Accept Challenge
+        </button>
+      )}
     </article>
-  );
+  )
 }
 
 ChallengeCard.propTypes = {
-  id: PropTypes.string.isRequired,
-  title: PropTypes.string.isRequired,
-  description: PropTypes.string.isRequired,
-  difficulty: PropTypes.oneOf(['easy', 'medium', 'hard']).isRequired,
-  completed: PropTypes.bool.isRequired,
-  onToggle: PropTypes.func.isRequired,
-};
+  challenge: PropTypes.shape({
+    id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]).isRequired,
+    title: PropTypes.string.isRequired,
+    description: PropTypes.string.isRequired,
+    difficulty: PropTypes.oneOf(['easy', 'medium', 'hard']).isRequired,
+    saving: PropTypes.number.isRequired,
+    points: PropTypes.number.isRequired,
+    isAccepted: PropTypes.bool,
+    isCompleted: PropTypes.bool,
+  }).isRequired,
+  onAccept: PropTypes.func,
+  onComplete: PropTypes.func,
+}

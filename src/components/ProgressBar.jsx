@@ -1,71 +1,67 @@
-/**
- * @file ProgressBar.jsx
- * @description Accessible reusable progress bar component.
- */
-
-import PropTypes from 'prop-types';
+import { useEffect, useState } from 'react'
+import PropTypes from 'prop-types'
 
 /**
- * Accessible progress bar with label and optional value display.
+ * Animated Progress Bar Component
+ * 
  * @param {Object} props
- * @param {number} props.value - Current value (0–max).
- * @param {number} [props.max=100] - Maximum value.
- * @param {string} [props.label] - Accessible label text.
- * @param {string} [props.color='forest'] - Tailwind color token for fill.
- * @param {string} [props.className] - Extra classes for wrapper.
- * @param {boolean} [props.showValue=false] - Whether to show numeric value.
+ * @param {number} props.value - Current progress value
+ * @param {number} [props.max=100] - Maximum possible value
+ * @param {string} [props.color='#2d6a4f'] - Fill color
+ * @param {number} [props.height=8] - Height of the progress bar in px (unused but kept for API compat)
+ * @param {boolean} [props.showLabel=false] - Whether to show the text label
  * @returns {JSX.Element}
  */
-export default function ProgressBar({
-  value,
-  max = 100,
-  label,
-  color = 'forest',
-  className = '',
-  showValue = false,
-}) {
-  const pct = Math.min(Math.max((value / max) * 100, 0), 100);
+export default function ProgressBar({ value, max = 100, color = '#2d6a4f', showLabel = false }) {
+  const [displayValue, setDisplayValue] = useState(0)
 
-  const colorMap = {
-    forest: 'bg-forest',
-    mint: 'bg-mint',
-    warning: 'bg-warning',
-    danger: 'bg-danger',
-  };
-  const fillClass = colorMap[color] || 'bg-forest';
+  useEffect(() => {
+    const targetValue = Math.min(value, max)
+    const duration = 1000
+    const startTime = performance.now()
+
+    const animate = (currentTime) => {
+      const elapsed = currentTime - startTime
+      const progress = Math.min(elapsed / duration, 1)
+      const easeProgress = 1 - Math.pow(1 - progress, 3)
+      const currentValue = targetValue * easeProgress
+
+      setDisplayValue(currentValue)
+
+      if (progress < 1) {
+        requestAnimationFrame(animate)
+      }
+    }
+
+    requestAnimationFrame(animate)
+  }, [value, max])
+
+  const percentage = Math.min((displayValue / max) * 100, 100)
 
   return (
-    <div className={`w-full ${className}`}>
-      {(label || showValue) && (
-        <div className="flex justify-between items-center mb-1">
-          {label && <span className="text-xs font-medium text-text-secondary">{label}</span>}
-          {showValue && (
-            <span className="text-xs text-text-muted tabular-nums">{Math.round(pct)}%</span>
-          )}
+    <div className="w-full">
+      {showLabel && (
+        <div className="flex justify-between text-sm text-charcoal mb-2">
+          <span>Progress</span>
+          <span>{Math.round(displayValue)} / {max}</span>
         </div>
       )}
-      <div
-        className="h-1 w-full bg-surface-2 rounded-full overflow-hidden"
-        role="progressbar"
-        aria-valuenow={value}
-        aria-valuemin={0}
-        aria-valuemax={max}
-        aria-label={label ?? 'Progress'}
-      >
+      <div className="relative h-2 bg-gray-200 rounded-full overflow-hidden">
         <div
-          className={`h-full ${fillClass} rounded-full transition-all duration-700 ease-smooth`}
-          style={{ width: `${pct}%` }}
+          className="absolute top-0 left-0 h-full rounded-full transition-all duration-1000 ease-in-out"
+          style={{
+            width: `${percentage}%`,
+            backgroundColor: color,
+          }}
         />
       </div>
     </div>
-  );
+  )
 }
 
 ProgressBar.propTypes = {
   value: PropTypes.number.isRequired,
   max: PropTypes.number,
-  label: PropTypes.string,
-  color: PropTypes.oneOf(['forest', 'mint', 'warning', 'danger']),
-  className: PropTypes.string,
-  showValue: PropTypes.bool,
-};
+  color: PropTypes.string,
+  showLabel: PropTypes.bool,
+}

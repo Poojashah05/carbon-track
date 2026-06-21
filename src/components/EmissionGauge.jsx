@@ -1,108 +1,97 @@
-/**
- * @file EmissionGauge.jsx
- * @description Animated SVG circular gauge showing total monthly CO₂.
- *   Uses a count-up animation and colour-codes severity.
- */
+import { useEffect, useState } from 'react'
+import PropTypes from 'prop-types'
+import { formatCO2 } from '../utils/formatters'
 
-import { useEffect, useState } from 'react';
-import PropTypes from 'prop-types';
-
-const INDIA_AVG = 230;
-const GLOBAL_AVG = 391.67;
+const MAX_SCALE = 600 // kg, represents 100% of arc
 
 /**
- * Returns severity colour based on emission level.
- * @param {number} kg
- * @returns {{ stroke: string, text: string }}
- */
-function getSeverity(kg) {
-  if (kg < INDIA_AVG) return { stroke: '#6366f1', text: 'text-mint' };   // indigo — good
-  if (kg < GLOBAL_AVG) return { stroke: '#d97706', text: 'text-amber' }; // amber — mid
-  return { stroke: '#dc2626', text: 'text-danger' };                     // red — high
-}
-
-/**
- * Animated SVG circular gauge for total CO₂ emissions.
+ * Emission Gauge Component
+ * Animated circular gauge for total CO₂ emissions
+ * 
  * @param {Object} props
- * @param {number} props.totalKg - Total CO₂ in kg.
- * @param {number} [props.maxKg=600] - Maximum value for gauge arc.
+ * @param {number} props.totalKg - Total CO2 in kg
+ * @param {string} [props.status] - User's status relative to global average ('below' or 'above')
+ * @param {boolean} [props.isLoading] - Loading state
  * @returns {JSX.Element}
  */
-export default function EmissionGauge({ totalKg, maxKg = 600 }) {
-  const [displayed, setDisplayed] = useState(0);
+export default function EmissionGauge({ totalKg, status = 'below', isLoading = false }) {
+  const [displayValue, setDisplayValue] = useState(0)
 
-  // Count-up animation
+  const radius = 72
+  const strokeWidth = 7
+  const circumference = 2 * Math.PI * radius
+
   useEffect(() => {
-    const duration = 1200;
-    const steps = 60;
-    const increment = totalKg / steps;
-    let current = 0;
-    const timer = setInterval(() => {
-      current = Math.min(current + increment, totalKg);
-      setDisplayed(Math.round(current * 10) / 10);
-      if (current >= totalKg) clearInterval(timer);
-    }, duration / steps);
-    return () => clearInterval(timer);
-  }, [totalKg]);
+    if (isLoading) { setDisplayValue(0); return }
 
-  const radius = 80;
-  const circumference = 2 * Math.PI * radius;
-  const pct = Math.min(totalKg / maxKg, 1);
-  const offset = circumference * (1 - pct * 0.75); // 3/4 arc
-  const { stroke, text } = getSeverity(totalKg);
+    const target = Math.min(totalKg, MAX_SCALE)
+    const duration = 1400
+    const start = performance.now()
+
+    const animate = (now) => {
+      const elapsed = now - start
+      const t = Math.min(elapsed / duration, 1)
+      const ease = 1 - Math.pow(1 - t, 3)
+      setDisplayValue(target * ease)
+      if (t < 1) requestAnimationFrame(animate)
+    }
+    requestAnimationFrame(animate)
+  }, [totalKg, isLoading])
+
+  const progress = Math.min(displayValue / MAX_SCALE, 1)
+  const strokeDashoffset = circumference * (1 - progress)
+  const color = status === 'below' ? '#52b788' : '#dc2626'
 
   return (
-    <div className="flex flex-col items-center gap-2">
-      <div className="relative w-48 h-48">
-        <svg className="w-full h-full -rotate-[135deg]" viewBox="0 0 200 200">
-          {/* Track */}
-          <circle
-            cx="100" cy="100" r={radius}
-            fill="none"
-            stroke="#e8e4de"
-            strokeWidth="12"
-            strokeDasharray={`${circumference * 0.75} ${circumference * 0.25}`}
-            strokeLinecap="round"
-          />
-          {/* Fill */}
-          <circle
-            cx="100" cy="100" r={radius}
-            fill="none"
-            stroke={stroke}
-            strokeWidth="12"
-            strokeDasharray={`${circumference * 0.75 - offset + circumference * 0.25} ${circumference}`}
-            strokeDashoffset={offset}
-            strokeLinecap="round"
-            style={{ transition: 'stroke-dashoffset 1.2s cubic-bezier(0.4,0,0.2,1)' }}
-          />
-        </svg>
-
-        {/* Value overlay */}
-        <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className={`text-3xl font-semibold tabular-nums ${text}`}>
-            {displayed.toFixed(1)}
-          </span>
-          <span className="text-xs text-text-muted font-medium">kg CO₂/mo</span>
-        </div>
-      </div>
-
-      {/* Severity label */}
-      <div className="text-center">
-        {totalKg < INDIA_AVG && (
-          <p className="text-xs font-medium text-mint">Below India average ✦</p>
-        )}
-        {totalKg >= INDIA_AVG && totalKg < GLOBAL_AVG && (
-          <p className="text-xs font-medium text-amber">Above India, below global avg</p>
-        )}
-        {totalKg >= GLOBAL_AVG && (
-          <p className="text-xs font-medium text-danger">Above global average</p>
+    <div className="relative flex items-center justify-center" aria-label={`${formatCO2(totalKg)} CO₂ monthly emissions`}>
+      <svg
+        width={160}
+        height={160}
+        viewBox="0 0 160 160"
+        className="-rotate-90"
+        aria-hidden="true"
+      >
+        {/* Background track */}
+        <circle
+          cx={80}
+          cy={80}
+          r={radius}
+          stroke="#e5e7eb"
+          strokeWidth={strokeWidth}
+          fill="none"
+        />
+        {/* Progress arc */}
+        <circle
+          cx={80}
+          cy={80}
+          r={radius}
+          stroke={color}
+          strokeWidth={strokeWidth}
+          strokeDasharray={circumference}
+          strokeDashoffset={strokeDashoffset}
+          strokeLinecap="round"
+          fill="none"
+          style={{ transition: 'stroke-dashoffset 0.05s ease' }}
+        />
+      </svg>
+      <div className="absolute text-center">
+        {isLoading ? (
+          <div className="text-sm text-gray-400">Loading…</div>
+        ) : (
+          <>
+            <div className="text-xl font-semibold text-charcoal leading-tight">
+              {displayValue.toFixed(1)}
+            </div>
+            <div className="text-xs text-gray-500">kg CO₂</div>
+          </>
         )}
       </div>
     </div>
-  );
+  )
 }
 
 EmissionGauge.propTypes = {
   totalKg: PropTypes.number.isRequired,
-  maxKg: PropTypes.number,
-};
+  status: PropTypes.oneOf(['below', 'above', 'equal']),
+  isLoading: PropTypes.bool,
+}

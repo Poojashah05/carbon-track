@@ -1,133 +1,159 @@
-/**
- * @file CategoryBreakdown.jsx
- * @description Donut chart + per-category horizontal bar breakdown of emissions.
- */
+import { useMemo } from 'react'
+import PropTypes from 'prop-types'
+import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts'
+import { formatCO2 } from '../utils/formatters'
 
-import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
-import PropTypes from 'prop-types';
-import { formatCO2 } from '../utils/formatters';
+const COLORS = {
+  transport: '#2d6a4f',
+  food: '#52b788',
+  energy: '#a8d8a8',
+  shopping: '#64748b',
+}
 
-const CATEGORY_META = {
-  transport: { label: 'Transport', color: '#312e81' },  // deep indigo
-  food:      { label: 'Food',      color: '#d97706' },  // amber
-  energy:    { label: 'Energy',    color: '#6366f1' },  // bright indigo-violet
-  shopping:  { label: 'Shopping',  color: '#818cf8' },  // light indigo
-};
+const CATEGORY_LABELS = {
+  transport: 'Transport',
+  food: 'Food',
+  energy: 'Energy',
+  shopping: 'Shopping',
+}
 
-/**
- * @param {{ active: boolean, payload: Array }} props
- */
-function CustomTooltip({ active, payload }) {
-  if (!active || !payload?.length) return null;
-  const d = payload[0];
-  return (
-    <div className="bg-white border border-border rounded px-3 py-2 text-xs shadow-dropdown">
-      <p className="font-medium text-charcoal">{d.name}</p>
-      <p className="text-text-muted">{formatCO2(d.value)}</p>
-    </div>
-  );
+const CustomTooltip = ({ active, payload }) => {
+  if (active && payload?.length) {
+    const d = payload[0].payload
+    return (
+      <div className="bg-white border border-gray-200 rounded-lg px-3 py-2 shadow text-xs">
+        <div className="font-medium text-charcoal">{d.category || d.name}</div>
+        <div className="text-gray-600">{formatCO2(payload[0].value)} · {d.pct}%</div>
+      </div>
+    )
+  }
+  return null
 }
 
 CustomTooltip.propTypes = {
   active: PropTypes.bool,
-  payload: PropTypes.array,
-};
+  payload: PropTypes.arrayOf(PropTypes.shape({
+    payload: PropTypes.object,
+    value: PropTypes.number
+  }))
+}
 
 /**
- * Donut chart and horizontal bar breakdown for emission categories.
+ * Category Breakdown Component
+ * Displays a visual breakdown of emissions by category (Transport, Food, Energy, Shopping)
+ * using Recharts donut and bar charts.
+ * 
  * @param {Object} props
- * @param {Array<{category: string, kg: number, percent: number}>} props.breakdown
- *   Sorted category breakdown from getCategoryBreakdown().
+ * @param {Object} props.breakdown - Breakdown of emissions by category
  * @returns {JSX.Element}
  */
 export default function CategoryBreakdown({ breakdown }) {
-  const chartData = breakdown
-    .filter((b) => b.kg > 0)
-    .map((b) => ({
-      name: CATEGORY_META[b.category]?.label ?? b.category,
-      value: b.kg,
-      color: CATEGORY_META[b.category]?.color ?? '#52b788',
-    }));
+  const pieData = useMemo(() =>
+    Object.entries(COLORS)
+      .map(([key, color]) => ({
+        name: CATEGORY_LABELS[key],
+        value: Number(breakdown[key]) || 0,
+        color,
+        pct: breakdown.percentages?.[key] || '0.0',
+      }))
+      .filter((d) => d.value > 0),
+    [breakdown]
+  )
 
-  const hasData = chartData.length > 0;
+  const barData = useMemo(() =>
+    Object.entries(COLORS).map(([key, color]) => ({
+      category: CATEGORY_LABELS[key],
+      value: Number(breakdown[key]) || 0,
+      pct: breakdown.percentages?.[key] || '0.0',
+      color,
+    })),
+    [breakdown]
+  )
+
+  if (pieData.length === 0) {
+    return (
+      <div className="bg-white border border-gray-200 rounded-lg p-5">
+        <h2 className="text-sm font-medium text-gray-500 mb-3">Category Breakdown</h2>
+        <div className="py-8 text-center text-sm text-gray-400">
+          Log activities to see your category breakdown.
+        </div>
+      </div>
+    )
+  }
 
   return (
-    <div className="card p-5">
-      <h3 className="text-sm font-semibold text-charcoal mb-4">Category Breakdown</h3>
-
-      <div className="flex flex-col lg:flex-row gap-6 items-center">
-        {/* Donut */}
-        <div className="w-40 h-40 shrink-0">
-          {hasData ? (
+    <div className="bg-white border border-gray-200 rounded-lg p-5">
+      <h2 className="text-sm font-medium text-gray-500 mb-4">Category Breakdown</h2>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Donut chart */}
+        <div>
+          <div className="h-48">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
-                  data={chartData}
+                  data={pieData}
                   cx="50%"
                   cy="50%"
-                  innerRadius={40}
-                  outerRadius={64}
+                  innerRadius={52}
+                  outerRadius={80}
                   paddingAngle={2}
                   dataKey="value"
-                  stroke="none"
+                  strokeWidth={0}
                 >
-                  {chartData.map((entry, i) => (
-                    <Cell key={i} fill={entry.color} />
+                  {pieData.map((entry) => (
+                    <Cell key={entry.name} fill={entry.color} />
                   ))}
                 </Pie>
                 <Tooltip content={<CustomTooltip />} />
               </PieChart>
             </ResponsiveContainer>
-          ) : (
-            <div className="w-full h-full rounded-full border-8 border-surface-2 flex items-center justify-center">
-              <span className="text-xs text-text-muted">No data</span>
-            </div>
-          )}
+          </div>
+          {/* Legend */}
+          <div className="grid grid-cols-2 gap-x-4 gap-y-2 mt-2">
+            {pieData.map((d) => (
+              <div key={d.name} className="flex items-center gap-1.5">
+                <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: d.color }} />
+                <span className="text-xs text-charcoal">{d.name}</span>
+                <span className="text-xs text-gray-400 ml-auto">{d.pct}%</span>
+              </div>
+            ))}
+          </div>
         </div>
 
-        {/* Bars */}
-        <div className="flex-1 w-full space-y-3">
-          {breakdown.map((b) => {
-            const meta = CATEGORY_META[b.category];
-            return (
-              <div key={b.category}>
-                <div className="flex justify-between items-center mb-1">
-                  <span className="text-xs font-medium text-text-secondary">
-                    {meta?.label ?? b.category}
-                  </span>
-                  <span className="text-xs text-text-muted tabular-nums">
-                    {formatCO2(b.kg)}
-                  </span>
+        {/* Horizontal bar chart */}
+        <div>
+          <div className="space-y-3">
+            {barData.map((d) => (
+              <div key={d.category}>
+                <div className="flex justify-between text-xs mb-1">
+                  <span className="text-charcoal">{d.category}</span>
+                  <span className="font-medium" style={{ color: d.color }}>{formatCO2(d.value)}</span>
                 </div>
-                <div className="h-1.5 w-full bg-surface-2 rounded-full overflow-hidden">
+                <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
                   <div
-                    className="h-full rounded-full transition-all duration-700"
+                    className="h-full rounded-full transition-all duration-500"
                     style={{
-                      width: `${b.percent}%`,
-                      backgroundColor: meta?.color ?? '#52b788',
+                      width: `${d.pct}%`,
+                      backgroundColor: d.color,
                     }}
                   />
                 </div>
               </div>
-            );
-          })}
-          {!hasData && (
-            <p className="text-xs text-text-muted py-4 text-center">
-              Log activities to see your breakdown.
-            </p>
-          )}
+            ))}
+          </div>
         </div>
       </div>
     </div>
-  );
+  )
 }
 
 CategoryBreakdown.propTypes = {
-  breakdown: PropTypes.arrayOf(
-    PropTypes.shape({
-      category: PropTypes.string.isRequired,
-      kg: PropTypes.number.isRequired,
-      percent: PropTypes.number.isRequired,
-    })
-  ).isRequired,
-};
+  breakdown: PropTypes.shape({
+    transport: PropTypes.number,
+    food: PropTypes.number,
+    energy: PropTypes.number,
+    shopping: PropTypes.number,
+    total: PropTypes.number,
+    percentages: PropTypes.objectOf(PropTypes.string),
+  }).isRequired,
+}

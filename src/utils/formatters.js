@@ -1,58 +1,96 @@
 /**
- * @file formatters.js
- * @description Pure formatting helpers for display-layer values.
- *   No side effects; safe to call with any input.
+ * Utility functions for formatting data
+ * Updated for Indian culture (no beef/pork labels)
  */
 
 /**
- * Formats a CO₂ value in kilograms into a human-readable string.
- * Values ≥ 1000 kg are shown as tonnes.
- * @param {number} kg - Raw kg CO₂ value.
- * @returns {string} Formatted string e.g. "12.3 kg CO₂" or "1.2 t CO₂".
+ * Format CO₂ amount with appropriate units
+ * @param {number} kg - CO₂ in kg
+ * @returns {string}
  */
 export function formatCO2(kg) {
-  const n = Number(kg);
-  if (!isFinite(n)) return '— kg CO₂';
-  if (n >= 1000) return `${(n / 1000).toFixed(2)} t CO₂`;
-  return `${n.toFixed(1)} kg CO₂`;
+  const num = Number.parseFloat(kg) || 0
+  if (num >= 1000) return `${(num / 1000).toFixed(2)} t CO₂`
+  return `${num.toFixed(1)} kg CO₂`
 }
 
 /**
- * Formats a Date object (or ISO string) using the user's locale.
- * @param {Date|string} date - Date to format.
- * @returns {string} Locale-aware date string e.g. "21 Jun 2026".
+ * Format date with relative time
+ * @param {string} dateString - ISO date string or YYYY-MM-DD
+ * @returns {string}
  */
-export function formatDate(date) {
-  try {
-    return new Intl.DateTimeFormat('en-IN', {
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric',
-    }).format(new Date(date));
-  } catch {
-    return String(date);
+export function formatDate(dateString) {
+  const date = new Date(dateString)
+  const now  = new Date()
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const dateStart  = new Date(date.getFullYear(), date.getMonth(), date.getDate())
+  const diffDays   = Math.round((todayStart - dateStart) / (1000 * 60 * 60 * 24))
+  if (diffDays === 0) return 'Today'
+  if (diffDays === 1) return 'Yesterday'
+  if (diffDays < 7)  return `${diffDays} days ago`
+  return date.toLocaleDateString('en-IN', {
+    day: 'numeric',
+    month: 'short',
+    year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined,
+  })
+}
+
+/**
+ * Get diet label (India-localised — no beef/pork)
+ * @param {string} diet
+ * @returns {string}
+ */
+export function getDietLabel(diet) {
+  const labels = {
+    mutton:    'Mutton / Lamb',
+    chicken:   'Chicken',
+    fish:      'Fish / Seafood',
+    paneer:    'Paneer / Dairy',
+    egg:       'Eggs',
+    dal:       'Dal / Pulses',
+    rice_meal: 'Rice + Sabzi',
+    veg_thali: 'Veg Thali',
+    vegan:     'Fully Plant-Based',
   }
+  return labels[diet] || diet
 }
 
 /**
- * Formats a decimal fraction as a percentage string.
- * @param {number} value - Fraction between 0 and 1.
- * @param {number} [decimals=1] - Number of decimal places.
- * @returns {string} e.g. "73.4%"
+ * Get energy source label (India-localised)
+ * @param {string} source
+ * @returns {string}
  */
-export function formatPercent(value, decimals = 1) {
-  const n = Number(value);
-  if (!isFinite(n)) return '0%';
-  return `${(n * 100).toFixed(decimals)}%`;
+export function getEnergySourceLabel(source) {
+  const labels = {
+    electricity_india:  'Electricity (India Grid)',
+    electricity_solar:  'Solar (Rooftop)',
+    natural_gas:        'Natural Gas (PNG)',
+    lpg:                'LPG (Cooking Gas)',
+    kerosene:           'Kerosene',
+  }
+  return labels[source] || source
 }
 
 /**
- * Formats a number with comma separators for thousands.
- * @param {number} value - Numeric value.
- * @returns {string} e.g. "1,234.5"
+ * Get transport mode label (India-localised)
+ * @param {string} mode
+ * @returns {string}
  */
-export function formatNumber(value) {
-  const n = Number(value);
-  if (!isFinite(n)) return '0';
-  return new Intl.NumberFormat('en-IN', { maximumFractionDigits: 1 }).format(n);
+export function getTransportModeLabel(mode) {
+  const labels = {
+    car_petrol:            'Car (Petrol)',
+    car_diesel:            'Car (Diesel)',
+    car_electric:          'Car (Electric)',
+    bus:                   'Bus',
+    train:                 'Train',
+    metro:                 'Metro',
+    auto_rickshaw:         'Auto Rickshaw',
+    two_wheeler_petrol:    '2-Wheeler (Petrol)',
+    two_wheeler_electric:  '2-Wheeler (Electric)',
+    flight_domestic:       'Flight (Domestic)',
+    flight_international:  'Flight (International)',
+    bicycle:               'Bicycle',
+    walking:               'Walking',
+  }
+  return labels[mode] || mode
 }
